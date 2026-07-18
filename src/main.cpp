@@ -83,10 +83,12 @@ int runCapture(int argc, char **argv) {
     const QString out =
         argc > 4 ? QString::fromLocal8Bit(argv[4]) : QStringLiteral("vespera.png");
     bool compact = false, demo = false;
+    int demoVariant = 0;
     for (int i = 5; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("compact")) compact = true;
         else if (a == QLatin1String("demo")) demo = true;
+        else if (a == QLatin1String("demo2")) { demo = true; demoVariant = 1; }
     }
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
@@ -119,7 +121,7 @@ int runCapture(int argc, char **argv) {
         return 1;
     }
     if (demo) {
-        mpris->loadDemo();
+        mpris->loadDemo(demoVariant);
         lyrics->loadDemo();
         cava->loadDemo();
         eq->loadDemo();

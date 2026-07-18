@@ -11,6 +11,20 @@ Rectangle {
     border.width: 1
     border.color: Theme.alpha("#ffffff", 0.08)
 
+    // glass sheen — a hairline of light along the top edge
+    Rectangle {
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        anchors.leftMargin: parent.radius
+        anchors.rightMargin: parent.radius
+        height: 1
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 0.5; color: Theme.alpha("#ffffff", 0.14) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
+    }
+
     // interpolated playback position (poll cadence is coarse; advance locally)
     property real estPos: Player.position
     property double _t0: Date.now()
@@ -48,6 +62,7 @@ Rectangle {
                     color: Player.accentAlt
                     font.pixelSize: Theme.fTitle
                     font.weight: Font.DemiBold
+                    font.letterSpacing: Theme.trackLabel
                 }
             }
             Row {
@@ -128,6 +143,31 @@ Rectangle {
                             if (t >= 0 && Player.canSeek) Player.seekTo(t);
                         }
                     }
+                }
+            }
+
+            // soft top/bottom fades so lines dissolve toward the edges and the
+            // current line reads as the focus. Fades toward shadow (not the base
+            // tint, which can be lighter than the backdrop) so it works on any
+            // palette. Purely decorative — no input.
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: 40
+                visible: Lyrics.hasLyrics
+                gradient: Gradient {
+                    orientation: Gradient.Vertical
+                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.45) }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+            }
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: 40
+                visible: Lyrics.hasLyrics
+                gradient: Gradient {
+                    orientation: Gradient.Vertical
+                    GradientStop { position: 0.0; color: "transparent" }
+                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.45) }
                 }
             }
 

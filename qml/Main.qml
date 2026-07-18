@@ -12,9 +12,10 @@ Window {
     minimumWidth: 340
     minimumHeight: 400
     title: qsTr("Vespera")
+    // Player.base is itself cross-faded in C++ on track change, so the whole
+    // window recolours in unison with the rest of the UI (no local Behavior,
+    // which would double-animate against the source fade).
     color: Player.base
-
-    Behavior on color { ColorAnimation { duration: 400 } }
 
     property bool userCompact: startCompact
     readonly property bool compact: userCompact || width < 640
@@ -78,7 +79,7 @@ Window {
                 color: Player.text
                 font.pixelSize: Theme.fBody
                 font.weight: Font.DemiBold
-                font.letterSpacing: 2
+                font.letterSpacing: Theme.trackCaps
             }
         }
 

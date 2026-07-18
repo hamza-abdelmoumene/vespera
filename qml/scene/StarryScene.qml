@@ -15,11 +15,10 @@ Item {
 
     readonly property real planetSize: Math.max(110, Math.min(width, height) * 0.23)
 
-    // base ground
+    // base ground — recoloured centrally (C++ cross-fade), no local Behavior
     Rectangle {
         anchors.fill: parent
         color: scene.base
-        Behavior on color { ColorAnimation { duration: 400 } }
     }
 
     // top glow wash
@@ -30,6 +29,54 @@ Item {
             GradientStop { position: 0.0; color: Theme.alpha(scene.accentAlt, 0.18) }
             GradientStop { position: 0.45; color: Theme.alpha(scene.accent, 0.05) }
             GradientStop { position: 1.0; color: "transparent" }
+        }
+    }
+
+    // Album-tinted ambient wash — a soft radial bloom low-left, behind the
+    // player, plus a smaller mauve bloom up by the cover. It reads the live
+    // palette so it cross-fades with every track; a slow, gated breathe keeps
+    // it feeling alive without any per-frame repaint (pure GPU compositing).
+    Item {
+        id: aura
+        anchors.fill: parent
+        z: 0
+        SequentialAnimation on opacity {
+            running: scene.animate
+            loops: Animation.Infinite
+            NumberAnimation { to: 1.0; duration: 5200; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.72; duration: 5200; easing.type: Easing.InOutSine }
+        }
+
+        Canvas {
+            id: bloom
+            anchors.fill: parent
+            renderTarget: Canvas.FramebufferObject
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+                const w = width, h = height;
+
+                function radial(cx, cy, r, col, a) {
+                    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+                    g.addColorStop(0.0, Theme.alpha(col, a));
+                    g.addColorStop(0.55, Theme.alpha(col, a * 0.35));
+                    g.addColorStop(1.0, "transparent");
+                    ctx.fillStyle = g;
+                    ctx.fillRect(0, 0, w, h);
+                }
+                // primary accent bloom behind the now-playing area
+                radial(w * 0.30, h * 0.60, Math.max(w, h) * 0.62, scene.accent, 0.16);
+                // secondary mauve bloom near the cover / upper left
+                radial(w * 0.16, h * 0.24, Math.min(w, h) * 0.85, scene.accentAlt, 0.10);
+            }
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            Connections {
+                target: scene
+                function onAccentChanged() { bloom.requestPaint(); }
+                function onAccentAltChanged() { bloom.requestPaint(); }
+            }
+            Component.onCompleted: requestPaint()
         }
     }
 

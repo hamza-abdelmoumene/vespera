@@ -2,11 +2,13 @@
 
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QEasingCurve>
 #include <QImage>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QVariantAnimation>
 #include <algorithm>
 
 #include "MprisPlayer.h"
@@ -22,6 +24,22 @@ bool looksLikeBrowser(const QString &haystack) {
     for (const char *n : needles)
         if (haystack.contains(QLatin1String(n))) return true;
     return false;
+}
+
+QColor lerpColor(const QColor &a, const QColor &b, double t) {
+    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t,
+                            a.greenF() + (b.greenF() - a.greenF()) * t,
+                            a.blueF() + (b.blueF() - a.blueF()) * t,
+                            a.alphaF() + (b.alphaF() - a.alphaF()) * t);
+}
+
+Palette lerpPalette(const Palette &a, const Palette &b, double t) {
+    Palette p = b;  // carry the target's validity/metadata
+    p.accent = lerpColor(a.accent, b.accent, t);
+    p.accentAlt = lerpColor(a.accentAlt, b.accentAlt, t);
+    p.base = lerpColor(a.base, b.base, t);
+    p.text = lerpColor(a.text, b.text, t);
+    return p;
 }
 }  // namespace
 
@@ -79,6 +97,7 @@ void MprisController::removePlayer(const QString &service) {
 
 void MprisController::onNameOwnerChanged(const QString &name, const QString &oldOwner,
                                         const QString &newOwner) {
+    if (m_demo) return;  // screenshot mode is frozen; ignore live players
     if (!name.startsWith(kMprisPrefix)) return;
     if (newOwner.isEmpty() && !oldOwner.isEmpty()) {
         removePlayer(name);
@@ -124,6 +143,7 @@ void MprisController::chooseActive() {
 }
 
 void MprisController::onActiveSwitched() {
+    if (m_demo) return;
     m_lastArtUrl = m_active ? m_active->artUrl() : QString();
     m_position = 0.0;
     fetchArt();
@@ -133,6 +153,7 @@ void MprisController::onActiveSwitched() {
 }
 
 void MprisController::onPlayerChanged() {
+    if (m_demo) return;
     auto *p = qobject_cast<MprisPlayer *>(sender());
     MprisPlayer *prev = m_active;
     chooseActive();
@@ -140,7 +161,7 @@ void MprisController::onPlayerChanged() {
 }
 
 void MprisController::handleActiveUpdate() {
-    if (!m_active) return;
+    if (m_demo || !m_active) return;
     const QString url = m_active->artUrl();
     if (url != m_lastArtUrl) {
         m_lastArtUrl = url;
@@ -151,7 +172,7 @@ void MprisController::handleActiveUpdate() {
 }
 
 void MprisController::onPlayerSeeked(double seconds) {
-    if (qobject_cast<MprisPlayer *>(sender()) != m_active) return;
+    if (m_demo || qobject_cast<MprisPlayer *>(sender()) != m_active) return;
     m_position = seconds;
     emit positionChanged();
 }
@@ -166,7 +187,7 @@ void MprisController::managePolling() {
 }
 
 void MprisController::pollPosition() {
-    if (!m_active) return;
+    if (m_demo || !m_active) return;
     const double pos = m_active->positionSeconds();
     if (pos >= 0.0) {
         m_position = pos;
@@ -213,22 +234,68 @@ void MprisController::fetchArt() {
 }
 
 void MprisController::applyPalette(const Palette &p) {
+    if (m_demo) return;  // demo palette is fixed; ignore any late live art
     m_palette = p;
-    emit paletteChanged();
+
+    // First palette of the session snaps into place — no fade-in from the
+    // default cyan on launch.
+    if (!m_paletteReady) {
+        m_paletteReady = true;
+        m_shown = p;
+        emit paletteChanged();
+        return;
+    }
+    // Already showing these colours — nothing to animate.
+    if (m_shown.accent == p.accent && m_shown.accentAlt == p.accentAlt &&
+        m_shown.base == p.base && m_shown.text == p.text)
+        return;
+
+    // Cross-fade every palette-derived colour toward the new album's palette in
+    // one central pass — equivalent to a ColorAnimation on each, but driven from
+    // the source so the whole UI shifts in unison. Self-terminating: costs
+    // nothing once the track has settled.
+    m_fromPalette = m_shown;
+    if (!m_paletteAnim) {
+        m_paletteAnim = new QVariantAnimation(this);
+        m_paletteAnim->setStartValue(0.0);
+        m_paletteAnim->setEndValue(1.0);
+        m_paletteAnim->setDuration(560);
+        m_paletteAnim->setEasingCurve(QEasingCurve::InOutQuad);
+        connect(m_paletteAnim, &QVariantAnimation::valueChanged, this,
+                [this](const QVariant &v) {
+                    m_shown = lerpPalette(m_fromPalette, m_palette, v.toDouble());
+                    emit paletteChanged();
+                });
+    }
+    m_paletteAnim->stop();
+    m_paletteAnim->start();
 }
 
 // ---- demo mode (deterministic screenshots) ---------------------------------
 
-void MprisController::loadDemo() {
+void MprisController::loadDemo(int variant) {
     m_demo = true;
+    m_demoVariant = variant;
+    if (m_paletteAnim) m_paletteAnim->stop();  // freeze any in-flight cross-fade
     m_position = 74.0;
     Palette p;
-    p.base = QColor(0x0b, 0x0f, 0x24);
-    p.accent = QColor(0x6f, 0xe9, 0xff);
-    p.accentAlt = QColor(0xb4, 0x90, 0xff);
-    p.text = QColor(0xea, 0xf2, 0xff);
     p.valid = true;
+    if (variant == 1) {
+        // A warm, amber-lit track — clearly different colours so the per-track
+        // recolour is visible when compared against variant 0.
+        p.base = QColor(0x1a, 0x11, 0x1c);
+        p.accent = QColor(0xf6, 0xb2, 0x6b);
+        p.accentAlt = QColor(0xf0, 0x7d, 0x9c);
+        p.text = QColor(0xfb, 0xef, 0xe8);
+    } else {
+        p.base = QColor(0x0b, 0x0f, 0x24);
+        p.accent = QColor(0x6f, 0xe9, 0xff);
+        p.accentAlt = QColor(0xb4, 0x90, 0xff);
+        p.text = QColor(0xea, 0xf2, 0xff);
+    }
     m_palette = p;
+    m_shown = p;  // demo snaps (single frame), no cross-fade
+    m_paletteReady = true;
     emit paletteChanged();
     emit activeChanged();
     emit positionChanged();
@@ -241,18 +308,27 @@ QString MprisController::playerName() const {
     return m_active ? m_active->identity() : QString();
 }
 QString MprisController::title() const {
-    if (m_demo) return QStringLiteral("Lantern Weather");
+    if (m_demo) return m_demoVariant == 1 ? QStringLiteral("Amber in the Dark")
+                                          : QStringLiteral("Lantern Weather");
     return m_active ? m_active->title() : QString();
 }
 QString MprisController::artist() const {
-    if (m_demo) return QStringLiteral("Vesper Lake");
+    if (m_demo) return m_demoVariant == 1 ? QStringLiteral("Kestrel Lume")
+                                          : QStringLiteral("Vesper Lake");
     return m_active ? m_active->artist() : QString();
 }
 QString MprisController::album() const {
-    if (m_demo) return QStringLiteral("Evening Static");
+    if (m_demo) return m_demoVariant == 1 ? QStringLiteral("Slow Ember")
+                                          : QStringLiteral("Evening Static");
     return m_active ? m_active->album() : QString();
 }
-QString MprisController::artUrl() const { return m_active ? m_active->artUrl() : QString(); }
+// In demo mode we never surface the live player's art — that would leak the
+// user's actually-playing (possibly explicit) cover into "clean" screenshots;
+// the cover falls back to the geometric placeholder instead.
+QString MprisController::artUrl() const {
+    if (m_demo) return QString();
+    return m_active ? m_active->artUrl() : QString();
+}
 QString MprisController::playbackStatus() const {
     if (m_demo) return QStringLiteral("Playing");
     return m_active ? m_active->playbackStatus() : QStringLiteral("Stopped");

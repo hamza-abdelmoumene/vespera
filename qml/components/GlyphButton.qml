@@ -17,8 +17,42 @@ Item {
     implicitWidth: primary ? 52 : 40
     implicitHeight: primary ? 52 : 40
 
-    scale: ma.containsMouse ? 1.08 : 1.0
+    scale: ma.pressed ? 0.93 : ma.containsMouse ? 1.08 : 1.0
     Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+
+    // soft accent glow behind the primary (play/pause) button — two layers give
+    // a gentle bloom that intensifies on hover, no blur effect required.
+    Rectangle {
+        visible: root.primary
+        anchors.centerIn: parent
+        width: parent.width * (ma.containsMouse ? 2.05 : 1.85)
+        height: width
+        radius: width / 2
+        color: root.accent
+        opacity: ma.containsMouse ? 0.14 : 0.07
+        Behavior on width { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
+    }
+    Rectangle {
+        visible: root.primary
+        anchors.centerIn: parent
+        width: parent.width * (ma.containsMouse ? 1.5 : 1.34)
+        height: width
+        radius: width / 2
+        color: root.accent
+        opacity: ma.containsMouse ? 0.22 : 0.13
+        Behavior on width { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
+    }
+
+    // faint circular pad under the secondary buttons for a clearer hover
+    Rectangle {
+        visible: !root.primary
+        anchors.fill: parent
+        radius: width / 2
+        color: Theme.alpha(root.iconColor, ma.containsMouse ? 0.10 : 0.0)
+        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+    }
 
     Rectangle {
         visible: root.primary

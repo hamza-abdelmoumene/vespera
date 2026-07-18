@@ -29,9 +29,16 @@ QtObject {
 
     readonly property string monoFamily: "monospace"
 
-    // easings
+    // letter-spacing rhythm — display type tracks tight, labels track open
+    readonly property real trackTight: -0.4
+    readonly property real trackLabel: 0.4
+    readonly property real trackCaps: 2.0
+
+    // motion durations (ms). Track recolour lives in C++ (~560ms) so the whole
+    // palette washes in unison; these drive local micro-interactions.
     readonly property int durFast: 130
     readonly property int durMed: 240
+    readonly property int durSlow: 420
 
     function alpha(c, a) {
         return Qt.rgba(c.r, c.g, c.b, a);

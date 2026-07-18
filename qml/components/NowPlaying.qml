@@ -38,6 +38,7 @@ Item {
                 color: Player.text
                 font.pixelSize: root.compact ? Theme.fTitle : Theme.fDisplay
                 font.weight: Font.DemiBold
+                font.letterSpacing: Theme.trackTight
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }

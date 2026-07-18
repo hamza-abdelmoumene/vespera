@@ -51,7 +51,8 @@ stranger on Fedora GNOME just as well as on Arch with a tiling WM.
   (Flat / Bass / Treble / Vocal / Pop / Rock / Jazz / Classic) and a lightning
   sweep on preset changes (optional; hides cleanly if EasyEffects is absent).
 - **Album-derived theming**: accent colours are extracted from the cover art in
-  process (OKLCh-normalised, no ImageMagick) and drive the whole UI.
+  process (OKLCh-normalised, no ImageMagick) and drive the whole UI, which
+  cross-fades smoothly to each track's palette.
 - **Responsive layout**: player and lyrics panes on wide windows, a compact
   now-playing card on narrow ones.
 - **Single-instance D-Bus control** so any window manager can bind keys to it.

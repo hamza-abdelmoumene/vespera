@@ -48,6 +48,7 @@ Item {
                     color: Player.text
                     font.pixelSize: Theme.fDisplay
                     font.weight: Font.DemiBold
+                    font.letterSpacing: Theme.trackTight
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -57,6 +58,7 @@ Item {
                     textFormat: Text.PlainText
                     color: Theme.alpha(Player.text, 0.6)
                     font.pixelSize: Theme.fBody
+                    font.letterSpacing: Theme.trackLabel
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -74,7 +76,13 @@ Item {
                     onSeek: (s) => Player.seekTo(s)
                 }
 
+                // small breath between the seek row and the transport
+                Item { Layout.preferredHeight: Theme.s3 }
+
                 TransportBar {
+                    // Centre the prev / play-pause / next group under the
+                    // metadata on the expanded layout (compact is already centred).
+                    Layout.alignment: Qt.AlignHCenter
                     visible: Player.hasPlayer
                     playing: Player.playing
                     accent: Player.accent

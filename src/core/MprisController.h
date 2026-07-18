@@ -16,6 +16,7 @@
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QVariantAnimation;
 
 namespace vespera {
 
@@ -69,10 +70,12 @@ public:
     double position() const { return m_position; }
     double length() const;
 
-    QColor accent() const { return m_palette.accent; }
-    QColor accentAlt() const { return m_palette.accentAlt; }
-    QColor base() const { return m_palette.base; }
-    QColor text() const { return m_palette.text; }
+    // The *shown* palette is a cross-fade toward the target (see applyPalette);
+    // reading it here is what makes the whole UI recolour smoothly per track.
+    QColor accent() const { return m_shown.accent; }
+    QColor accentAlt() const { return m_shown.accentAlt; }
+    QColor base() const { return m_shown.base; }
+    QColor text() const { return m_shown.text; }
 
     Q_INVOKABLE void playPause();
     Q_INVOKABLE void next();
@@ -81,7 +84,9 @@ public:
     Q_INVOKABLE void seekBy(double seconds);
 
     // Deterministic fake state for screenshots (see `vespera --capture ... demo`).
-    Q_INVOKABLE void loadDemo();
+    // `variant` selects one of a couple of invented tracks + palettes so the
+    // per-track recolour can be demonstrated (demo = 0, demo2 = 1).
+    Q_INVOKABLE void loadDemo(int variant = 0);
 
 signals:
     void activeChanged();
@@ -112,13 +117,22 @@ private:
     MprisPlayer *m_active = nullptr;
     QString m_lastArtUrl;
     double m_position = 0.0;
+
+    // Palette cross-fade: m_palette is the target, m_shown is what QML reads and
+    // is animated toward the target over ~half a second so a track change washes
+    // the whole UI to the new album colours instead of snapping.
     Palette m_palette = PaletteExtractor::defaults();
+    Palette m_shown = PaletteExtractor::defaults();
+    Palette m_fromPalette = PaletteExtractor::defaults();
+    QVariantAnimation *m_paletteAnim = nullptr;
+    bool m_paletteReady = false;  // first palette snaps; later ones cross-fade
 
     QTimer m_posTimer;
     QNetworkAccessManager *m_net = nullptr;
     quint64 m_artToken = 0;
 
     bool m_demo = false;  // screenshot mode: getters return fixed clean data
+    int m_demoVariant = 0;
 };
 
 }  // namespace vespera
