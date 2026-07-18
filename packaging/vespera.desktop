@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Vespera
+GenericName=Music Player Companion
+Comment=MPRIS controller with synced lyrics, visualizer and equalizer
+Exec=vespera
+Icon=vespera
+Terminal=false
+Categories=AudioVideo;Audio;Player;GTK;
+Keywords=music;mpris;lyrics;equalizer;visualizer;spotify;player;
+StartupWMClass=vespera
+StartupNotify=true

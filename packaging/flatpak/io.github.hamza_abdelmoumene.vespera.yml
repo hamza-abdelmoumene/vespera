@@ -1,0 +1,33 @@
+app-id: io.github.hamza_abdelmoumene.vespera
+runtime: org.kde.Platform
+runtime-version: '6.8'
+sdk: org.kde.Sdk
+command: vespera
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # synced lyrics (lrclib) over HTTPS
+  - --share=network
+  # MPRIS: observe and control media players, own our control name
+  - --talk-name=org.freedesktop.DBus
+  - --talk-name=org.mpris.MediaPlayer2.*
+  - --own-name=org.vespera.Vespera
+
+# Note: the cava visualizer and the EasyEffects equalizer rely on host tools and
+# are not available inside the Flatpak sandbox. For those, use the AppImage or a
+# native install. The core (MPRIS control + synced lyrics) works fully here.
+
+modules:
+  - name: vespera
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    rename-icon: vespera
+    rename-desktop-file: vespera.desktop
+    sources:
+      - type: git
+        url: https://github.com/hamza-abdelmoumene/vespera.git
+        tag: v0.1.0
