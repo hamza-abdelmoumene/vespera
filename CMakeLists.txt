@@ -43,6 +43,11 @@ qt_add_executable(vespera
     src/core/CavaService.cpp
     src/core/EqService.h
     src/core/EqService.cpp
+    src/core/ThemeManager.h
+    src/core/ThemeManager.cpp
+    src/core/AppImageProvider.h
+    src/core/CoverStore.h
+    src/core/CoverStore.cpp
 )
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -53,18 +58,37 @@ qt_add_qml_module(vespera
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
-        qml/scene/StarryScene.qml
-        qml/components/CoverArt.qml
+        qml/scene/CoverBackdrop.qml
+        qml/scene/AuroraOverlay.qml
+        qml/scene/StarfieldOverlay.qml
+        qml/scene/SynthwaveOverlay.qml
+        qml/scene/Backdrop.qml
+        qml/scene/FloatingNotes.qml
+        qml/components/GlassPanel.qml
+        qml/components/EclipseDisc.qml
         qml/components/NowPlaying.qml
         qml/components/TransportBar.qml
         qml/components/GlyphButton.qml
         qml/components/SeekBar.qml
-        qml/components/Visualizer.qml
         qml/components/Equalizer.qml
         qml/components/LyricsPanel.qml
         qml/components/PlayerPane.qml
+        qml/components/PlaybackExtras.qml
         qml/components/PresetButton.qml
         qml/components/IconButton.qml
+        qml/components/ThemePicker.qml
+)
+
+qt_add_resources(vespera "fonts"
+    PREFIX "/"
+    FILES
+        assets/fonts/JetBrainsMono-Regular.ttf
+        assets/fonts/JetBrainsMono-Medium.ttf
+        assets/fonts/JetBrainsMono-Bold.ttf
+        assets/fonts/JetBrainsMono-ExtraBold.ttf
+        assets/fonts/MapleMono-Regular.ttf
+        assets/fonts/MapleMono-Bold.ttf
+        assets/fonts/Rubik-Variable.ttf
 )
 
 target_compile_definitions(vespera PRIVATE

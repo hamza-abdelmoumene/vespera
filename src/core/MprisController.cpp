@@ -201,6 +201,7 @@ void MprisController::fetchArt() {
 
     if (url.isEmpty()) {
         applyPalette(PaletteExtractor::defaults());
+        emit artImageReady(QImage());
         return;
     }
 
@@ -208,6 +209,7 @@ void MprisController::fetchArt() {
     if (u.isLocalFile() || url.startsWith(QLatin1Char('/'))) {
         const QImage img(u.isLocalFile() ? u.toLocalFile() : url);
         applyPalette(PaletteExtractor::extract(img));
+        emit artImageReady(img);
         return;
     }
 
@@ -218,19 +220,25 @@ void MprisController::fetchArt() {
         QNetworkReply *reply = m_net->get(req);
         connect(reply, &QNetworkReply::finished, this, [this, reply, token]() {
             reply->deleteLater();
+            // A fetch started before demo mode engaged must never surface the
+            // real, possibly-explicit cover into a "clean" screenshot.
+            if (m_demo) return;
             if (token != m_artToken) return;  // superseded by a newer track
             if (reply->error() != QNetworkReply::NoError) {
                 applyPalette(PaletteExtractor::defaults());
+                emit artImageReady(QImage());
                 return;
             }
             QImage img;
             img.loadFromData(reply->readAll());
             applyPalette(PaletteExtractor::extract(img));
+            emit artImageReady(img);
         });
         return;
     }
 
     applyPalette(PaletteExtractor::defaults());
+    emit artImageReady(QImage());
 }
 
 void MprisController::applyPalette(const Palette &p) {
@@ -323,10 +331,11 @@ QString MprisController::album() const {
     return m_active ? m_active->album() : QString();
 }
 // In demo mode we never surface the live player's art — that would leak the
-// user's actually-playing (possibly explicit) cover into "clean" screenshots;
-// the cover falls back to the geometric placeholder instead.
+// user's actually-playing (possibly explicit) cover into "clean" screenshots.
+// Instead we hand back a synthetic, invented cover (see DemoArtProvider) matched
+// to the demo palette, so the cover-as-backdrop redesign renders in captures.
 QString MprisController::artUrl() const {
-    if (m_demo) return QString();
+    if (m_demo) return QStringLiteral("image://vespera/cover/%1").arg(m_demoVariant);
     return m_active ? m_active->artUrl() : QString();
 }
 QString MprisController::playbackStatus() const {
@@ -342,6 +351,32 @@ bool MprisController::canSeek() const { return m_demo || (m_active && m_active->
 double MprisController::length() const {
     if (m_demo) return 227.0;
     return m_active ? m_active->lengthSeconds() : 0.0;
+}
+
+double MprisController::volume() const {
+    if (m_demo) return 0.72;
+    return m_active ? m_active->volume() : 1.0;
+}
+bool MprisController::shuffle() const {
+    return m_demo ? false : (m_active && m_active->shuffle());
+}
+QString MprisController::loopStatus() const {
+    if (m_demo) return QStringLiteral("None");
+    return m_active ? m_active->loopStatus() : QStringLiteral("None");
+}
+void MprisController::setVolume(double v) {
+    if (m_active) m_active->setVolume(v);
+}
+void MprisController::toggleShuffle() {
+    if (m_active) m_active->setShuffle(!m_active->shuffle());
+}
+void MprisController::cycleLoop() {
+    if (!m_active) return;
+    const QString s = m_active->loopStatus();
+    const QString next = s == QLatin1String("None")       ? QStringLiteral("Playlist")
+                         : s == QLatin1String("Playlist") ? QStringLiteral("Track")
+                                                          : QStringLiteral("None");
+    m_active->setLoopStatus(next);
 }
 
 void MprisController::playPause() {

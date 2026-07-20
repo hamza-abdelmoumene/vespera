@@ -37,6 +37,13 @@ public:
     bool canSeek() const { return m_canSeek; }
     bool canControl() const { return m_canControl; }
 
+    double volume() const { return m_volume; }        // 0..1
+    bool shuffle() const { return m_shuffle; }
+    QString loopStatus() const { return m_loopStatus; }  // None / Track / Playlist
+    void setVolume(double v);
+    void setShuffle(bool on);
+    void setLoopStatus(const QString &status);
+
     // Fetch the live position (seconds). Returns -1 on failure.
     double positionSeconds();
 
@@ -59,6 +66,7 @@ private slots:
 private:
     void refreshAll();
     void applyPlayerProps(const QVariantMap &props);
+    void setPlayerProp(const QString &name, const QVariant &value);
 
     QString m_service;
     QString m_identity;
@@ -69,6 +77,9 @@ private:
     bool m_canGoPrevious = false;
     bool m_canSeek = false;
     bool m_canControl = false;
+    double m_volume = 1.0;
+    bool m_shuffle = false;
+    QString m_loopStatus = QStringLiteral("None");
 };
 
 }  // namespace vespera

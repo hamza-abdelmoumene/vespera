@@ -1,7 +1,13 @@
-// 10-band equalizer with a lightning sweep signature on preset changes.
-// Sliders drive EqService (which renders an EasyEffects preset live).
+// 10-band equalizer — big, glassy, and expressive (the reference look).
+//
+// The gain curve threads through the ten handle positions and is ALWAYS
+// there (not a transient flash) — it just smoothly re-shapes itself as the
+// sliders move, whether that's a hand-drag or a preset applying. A brief,
+// clean brightness pulse (no filled glow shape, no shadow blob) marks the
+// moment something changes. The live cava trace above rides independently.
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Effects
 import QtQuick.Layouts
 import Vespera
 
@@ -9,47 +15,68 @@ ColumnLayout {
     id: root
     spacing: Theme.s3
 
-    // lightning sweep state
-    property real sweep: 0      // 0..10, position of the bolt front
-    property real fade: 1       // 1 = invisible, 0 = full
-
-    function triggerLightning() {
-        fade = 0;
-        sweepAnim.restart();
-        fadeAnim.restart();
-    }
-    NumberAnimation { id: sweepAnim; target: root; property: "sweep"; from: 0; to: 10; duration: 640; easing.type: Easing.OutCubic }
-    SequentialAnimation {
-        id: fadeAnim
-        PauseAnimation { duration: 300 }
-        NumberAnimation { target: root; property: "fade"; from: 0; to: 1; duration: 820; easing.type: Easing.InOutQuad }
-    }
-
     readonly property var labels: ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
+    // a pure warm gold, barely tinted by the theme — kept saturated on purpose
+    // so the curve reads as ITS OWN thing, never blended into the ambient crest
+    readonly property color warm: Theme.mix("#ffb35c", Style.accentAlt, 0.16)
+    readonly property color glowB: Theme.mix("#ff7a7a", Style.accent, 0.2)
 
+    // the sliders' own live (Behavior-animated) positions — the curve reads
+    // these every frame they move, so it re-shapes in step with the handles
+    // instead of jump-cutting to the new gain values
+    property var liveBands: [Eq.band(1), Eq.band(2), Eq.band(3), Eq.band(4), Eq.band(5),
+                              Eq.band(6), Eq.band(7), Eq.band(8), Eq.band(9), Eq.band(10)]
+    function setLive(i, v) { liveBands[i] = v; gainFx.requestPaint(); }
+
+    // a brief, localised-nowhere brightness pulse — alpha/width only, never a
+    // filled shape — marking a preset apply or a released slider
+    property real pulse: 0
+    NumberAnimation { id: pulseAnim; target: root; property: "pulse"; from: 1; to: 0
+                       duration: 700; easing.type: Easing.OutCubic }
+    Connections {
+        target: Eq
+        function onPresetChanged() { if (Eq.preset !== "Custom") pulseAnim.restart(); }
+    }
+
+    // ---- header ----
     RowLayout {
         Layout.fillWidth: true
+        spacing: Theme.s3
         Text {
             text: "Equalizer"
-            color: Player.accentAlt
+            color: Style.text
+            font.family: Style.displayFamily
             font.pixelSize: Theme.fTitle
             font.weight: Font.DemiBold
             font.letterSpacing: Theme.trackLabel
             Layout.fillWidth: true
         }
-        Text {
-            text: Eq.preset
-            color: Theme.alpha(Player.text, 0.6)
-            font.pixelSize: Theme.fLabel
-            font.weight: Font.DemiBold
-            font.letterSpacing: Theme.trackCaps
-            textFormat: Text.PlainText
+        Rectangle {
+            implicitWidth: presetName.width + Theme.s4
+            implicitHeight: 24
+            radius: 12
+            color: Theme.alpha(Style.accent, 0.16)
+            border.width: 1
+            border.color: Theme.alpha(Style.accent, 0.3)
+            Text {
+                id: presetName
+                anchors.centerIn: parent
+                text: Eq.preset
+                color: Style.accent
+                font.family: Style.monoFamily
+                font.pixelSize: Theme.fCaption
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1.2
+                textFormat: Text.PlainText
+            }
         }
     }
 
+    // ---- sliders + effects (grows with the panel) ----
     Item {
         Layout.fillWidth: true
-        Layout.preferredHeight: 176
+        Layout.fillHeight: true
+        Layout.minimumHeight: 150
 
         Row {
             id: eqRow
@@ -62,9 +89,6 @@ ColumnLayout {
                     required property int index
                     width: eqRow.width / 10
                     height: eqRow.height
-
-                    property real dist: root.sweep - index
-                    property real hit: dist >= 0 && dist < 1 ? Math.sin(dist * Math.PI) : 0
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -86,81 +110,56 @@ ColumnLayout {
                             }
                             Behavior on value {
                                 enabled: !sld.pressed
-                                NumberAnimation { duration: 320; easing.type: Easing.OutQuart }
+                                NumberAnimation { duration: 340; easing.type: Easing.OutQuart }
                             }
-                            onPressedChanged: if (!pressed) Eq.setBand(cell.index + 1, Math.round(value))
+                            // every frame this animates (drag OR preset apply), the gain
+                            // curve re-shapes in step — no separate "trace" animation needed
+                            onValueChanged: root.setLive(cell.index, value)
+                            onPressedChanged: {
+                                if (!pressed) {
+                                    Eq.setBand(cell.index + 1, Math.round(value));
+                                    pulseAnim.restart();   // single-band edits get a brightness pulse too
+                                }
+                            }
 
                             background: Rectangle {
                                 x: sld.leftPadding + (sld.availableWidth - width) / 2
                                 y: sld.topPadding
-                                width: sld.hovered || sld.pressed ? 9 : 8
+                                width: 5
                                 height: sld.availableHeight
-                                radius: width / 2
-                                color: Theme.alpha(Player.text, sld.hovered || sld.pressed ? 0.14 : 0.10)
-                                Behavior on width { NumberAnimation { duration: Theme.durFast } }
-                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
-
-                                Rectangle {   // fill from the bottom
-                                    id: fill
+                                radius: 2.5
+                                color: Theme.alpha("#ffffff", 0.16)
+                                Rectangle {
                                     width: parent.width
                                     height: (1 - sld.visualPosition) * parent.height
                                     y: sld.visualPosition * parent.height
                                     radius: parent.radius
+                                    // a hot, glowing tip at the fill's leading edge rather than a
+                                    // flat two-stop fill — reads as lit, not just coloured
                                     gradient: Gradient {
-                                        GradientStop { position: 0.0; color: Player.accentAlt }
-                                        GradientStop { position: 1.0; color: Player.accent }
-                                    }
-                                    // bright cap at the fill's "water line"
-                                    Rectangle {
-                                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                                        height: 2
-                                        radius: 1
-                                        color: Qt.lighter(Player.accentAlt, 1.3)
-                                        opacity: 0.9
-                                        visible: fill.height > 3
+                                        GradientStop { position: 0.0; color: Theme.mix(Style.accent, "#ffffff", 0.55) }
+                                        GradientStop { position: 0.18; color: Style.accent }
+                                        GradientStop { position: 1.0; color: Theme.mix(Style.accent, Style.accentAlt, 0.85) }
                                     }
                                 }
                             }
 
-                            handle: Item {
-                                id: hnd
+                            handle: Rectangle {
                                 x: sld.leftPadding + (sld.availableWidth - width) / 2
                                 y: sld.topPadding + sld.visualPosition * (sld.availableHeight - height)
-                                width: 16; height: 16
-                                // combined "energy": hover, press, and the sweep hit
-                                readonly property real energy: sld.pressed ? 1.0 : sld.hovered ? 0.55 : 0.0
-                                readonly property real glow:
-                                    Math.min(1.15, hnd.energy + cell.hit * (1 - root.fade))
-
-                                Rectangle {   // soft accent glow (drawn behind the core)
-                                    anchors.centerIn: parent
-                                    width: 16 + 11 + 26 * hnd.glow
-                                    height: width
-                                    radius: width / 2
-                                    color: Player.accent
-                                    opacity: 0.10 + 0.42 * Math.min(1, hnd.glow)
-                                    Behavior on width { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
-                                    Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
-                                }
-                                Rectangle {   // handle core
-                                    anchors.centerIn: parent
-                                    width: 16; height: 16; radius: 8
-                                    color: Player.text
-                                    scale: 1.0 + hnd.energy * 0.16 + cell.hit * 0.4 * (1 - root.fade)
-                                    Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutBack } }
-                                    Rectangle {   // accent pip appears while active
-                                        anchors.centerIn: parent
-                                        width: parent.width * 0.4; height: width; radius: width / 2
-                                        color: Player.accent
-                                        opacity: hnd.energy * 0.9
-                                        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
-                                    }
-                                }
+                                width: 18; height: 18; radius: 9
+                                color: "#ffffff"
+                                readonly property real energy: sld.pressed ? 1.0 : sld.hovered ? 0.5 : 0.0
+                                scale: 1.0 + energy * 0.2
+                                border.width: 2
+                                border.color: Style.accent
+                                Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
                             }
                         }
                         Text {
                             text: root.labels[cell.index]
-                            color: Theme.alpha(Player.text, 0.45)
+                            color: Theme.alpha(Style.text, 0.5)
+                            font.family: Style.monoFamily
                             font.pixelSize: 10
                             font.weight: Font.DemiBold
                             Layout.alignment: Qt.AlignHCenter
@@ -170,88 +169,139 @@ ColumnLayout {
             }
         }
 
-        // fluid lightning across the slider tops
-        Canvas {
-            id: bolt
+        // ---- the gain curve: ONE line, always present, connecting the ten
+        // handles — the whole signature. It re-shapes itself in step with the
+        // sliders (drag or preset apply), never a separate trace-in animation.
+        // The glow is a real blur of a THICK stroke sitting behind a thin
+        // crisp core — that's what makes it read as a lit, soft ribbon
+        // instead of a hairline (no filled glow shapes, no shadow rectangle).
+        Item {
+            id: gainLayer
             anchors.fill: parent
-            z: 0
-            opacity: 1 - root.fade
-            renderTarget: Canvas.FramebufferObject
-            Timer {
-                interval: 16
-                running: root.fade < 1 && root.sweep > 0
-                repeat: true
-                onTriggered: bolt.requestPaint()
+            anchors.bottomMargin: 18
+            z: 2
+
+            function curveY(f, h) {
+                const p = f * 9;
+                const i0 = Math.floor(p), t = p - i0, i1 = Math.min(9, i0 + 1);
+                const a = root.liveBands[i0], b = root.liveBands[i1];
+                const s = t * t * (3 - 2 * t);                    // smoothstep
+                const v = a * (1 - s) + b * s;                    // -12..12
+                const norm = (v + 12) / 24;                       // 0..1
+                return (1 - norm) * (h - 12) + 6;
             }
-            onPaint: {
-                const ctx = getContext("2d");
-                ctx.clearRect(0, 0, width, height);
-                if (root.sweep <= 0 || root.fade >= 1) return;
-                const t = Date.now() / 1000;
-                const upto = root.sweep;        // 0..10, revealed front of the sweep
-                const life = 1 - root.fade;     // overall intensity, 1 → 0
-                ctx.lineJoin = "round";
-                ctx.lineCap = "round";
-
-                // slider value points, with a whisper of shimmer so the arc breathes
+            function buildPath(ctx, w, h) {
+                const N = 90;
                 const pts = [];
-                for (let i = 0; i < 10; i++) {
-                    const val = Eq.band(i + 1);
-                    const norm = 1.0 - ((val + 12) / 24);
-                    const shimmer = Math.sin(t * 6 + i * 1.3) * 1.1 * life;
-                    pts.push({ x: (i + 0.5) * (width / 10), y: 8 + norm * (height - 30) + shimmer });
+                for (let k = 0; k < N; k++) {
+                    const f = k / (N - 1);
+                    pts.push({ x: f * w, y: gainLayer.curveY(f, h) });
                 }
-
-                // reveal a smooth polyline up to the (fractional) sweep front
-                const rev = [];
-                const fi = Math.floor(upto);
-                for (let i = 0; i <= fi && i < pts.length; i++) rev.push(pts[i]);
-                if (fi < pts.length - 1) {
-                    const f = upto - fi;
-                    if (f > 0) {
-                        const a = pts[fi], b = pts[fi + 1];
-                        rev.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
-                    }
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length - 1; i++) {
+                    const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
+                    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
                 }
+                ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+                return pts;
+            }
+            function repaint() { glowSrc.requestPaint(); gainFx.requestPaint(); }
 
-                function tracePath() {
-                    ctx.beginPath();
-                    ctx.moveTo(rev[0].x, rev[0].y);
-                    for (let i = 1; i < rev.length - 1; i++) {
-                        const mx = (rev[i].x + rev[i + 1].x) / 2;
-                        const my = (rev[i].y + rev[i + 1].y) / 2;
-                        ctx.quadraticCurveTo(rev[i].x, rev[i].y, mx, my);
-                    }
-                    ctx.lineTo(rev[rev.length - 1].x, rev[rev.length - 1].y);
+            // the glow source — a thick, saturated stroke with nothing else on
+            // it. This is what gets blurred; it never renders on screen itself.
+            Canvas {
+                id: glowSrc
+                anchors.fill: parent
+                renderTarget: Canvas.FramebufferObject
+                visible: false
+                onPaint: {
+                    const ctx = getContext("2d");
+                    ctx.reset();
+                    const w = width, h = height;
+                    const p = root.pulse;
+                    gainLayer.buildPath(ctx, w, h);
+                    ctx.lineJoin = "round"; ctx.lineCap = "round";
+                    const lg = ctx.createLinearGradient(0, 0, w, 0);
+                    lg.addColorStop(0.0, root.warm);
+                    lg.addColorStop(0.5, Qt.lighter(root.warm, 1.2 + p * 0.15));
+                    lg.addColorStop(1.0, root.glowB);
+                    ctx.strokeStyle = lg;
+                    ctx.lineWidth = 13 + p * 7;
+                    ctx.globalAlpha = 0.9;
                     ctx.stroke();
                 }
-
-                if (rev.length >= 2) {
-                    ctx.lineWidth = 12;  ctx.strokeStyle = Player.accent;                 ctx.globalAlpha = 0.14 * life; tracePath();
-                    ctx.lineWidth = 4.5; ctx.strokeStyle = Player.accentAlt;              ctx.globalAlpha = 0.50 * life; tracePath();
-                    ctx.lineWidth = 1.6; ctx.strokeStyle = Qt.lighter(Player.accent, 1.5); ctx.globalAlpha = 0.95 * life; tracePath();
-                }
-
-                // leading comet spark at the sweep front
-                const front = rev.length ? rev[rev.length - 1] : pts[0];
-                const sparkR = 6.5 + 2.5 * Math.sin(t * 22);
-                const sg = ctx.createRadialGradient(front.x, front.y, 0, front.x, front.y, sparkR * 2.4);
-                sg.addColorStop(0.0, Theme.alpha(Qt.lighter(Player.accent, 1.6), 0.9 * life));
-                sg.addColorStop(0.4, Theme.alpha(Player.accent, 0.5 * life));
-                sg.addColorStop(1.0, "transparent");
-                ctx.globalAlpha = 1.0;
-                ctx.fillStyle = sg;
-                ctx.beginPath();
-                ctx.arc(front.x, front.y, sparkR * 2.4, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = Theme.alpha("#ffffff", 0.85 * life);
-                ctx.beginPath();
-                ctx.arc(front.x, front.y, 1.8, 0, Math.PI * 2);
-                ctx.fill();
             }
+            MultiEffect {
+                anchors.fill: glowSrc
+                source: glowSrc
+                z: -1
+                blurEnabled: true
+                blur: 0.72 + root.pulse * 0.22
+                blurMax: 56
+                brightness: 0.16 + root.pulse * 0.14
+                saturation: 0.08
+            }
+
+            // the crisp layer on top: silhouette wash + a thin bright core +
+            // small dot markers at each band
+            Canvas {
+                id: gainFx
+                anchors.fill: parent
+                renderTarget: Canvas.FramebufferObject
+                onPaint: {
+                    const ctx = getContext("2d");
+                    ctx.reset();
+                    const w = width, h = height;
+                    const p = root.pulse;   // 0 at rest .. 1 right after a change
+
+                    const pts = gainLayer.buildPath(ctx, w, h);
+                    ctx.lineJoin = "round"; ctx.lineCap = "round";
+
+                    // soft filled wash under the line down to the floor
+                    ctx.lineTo(pts[pts.length - 1].x, h);
+                    ctx.lineTo(pts[0].x, h);
+                    ctx.closePath();
+                    const fg = ctx.createLinearGradient(0, 0, 0, h);
+                    fg.addColorStop(0.0, Theme.alpha(root.warm, 0.22 + p * 0.12));
+                    fg.addColorStop(1.0, Theme.alpha(root.warm, 0.0));
+                    ctx.fillStyle = fg;
+                    ctx.fill();
+
+                    // thin bright core — the glow layer behind supplies the bloom
+                    gainLayer.buildPath(ctx, w, h);
+                    const lg = ctx.createLinearGradient(0, 0, w, 0);
+                    lg.addColorStop(0.0, Qt.lighter(root.warm, 1.1));
+                    lg.addColorStop(0.5, "#ffffff");
+                    lg.addColorStop(1.0, Qt.lighter(root.glowB, 1.15));
+                    ctx.strokeStyle = lg;
+                    ctx.lineWidth = 1.8 + p * 1.0;
+                    ctx.stroke();
+
+                    // small dot markers at each band — the connect-the-dots read
+                    // from the reference, a soft core that breathes with the pulse
+                    for (let b = 0; b < 10; b++) {
+                        const f = (b + 0.5) / 10;
+                        const x = f * w, y = gainLayer.curveY(f, h);
+                        const rr = 4 + p * 3;
+                        const dg = ctx.createRadialGradient(x, y, 0, x, y, rr);
+                        dg.addColorStop(0.0, Theme.alpha("#ffffff", 0.95));
+                        dg.addColorStop(0.6, Theme.alpha("#ffffff", 0.5 + p * 0.35));
+                        dg.addColorStop(1.0, "transparent");
+                        ctx.fillStyle = dg;
+                        ctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+                        ctx.fillStyle = Theme.alpha(root.warm, 0.9);
+                        ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+                    }
+                }
+                Component.onCompleted: requestPaint()
+                Connections { target: Style; function onChanged() { gainLayer.repaint(); } }
+            }
+            Connections { target: root; function onPulseChanged() { gainLayer.repaint(); } }
         }
     }
 
+    // ---- presets ----
     ColumnLayout {
         Layout.fillWidth: true
         spacing: Theme.s2
@@ -263,7 +313,7 @@ ColumnLayout {
                 delegate: PresetButton {
                     required property string modelData
                     name: modelData
-                    onPicked: { root.triggerLightning(); Eq.applyPreset(name); }
+                    onPicked: Eq.applyPreset(name)
                 }
             }
         }
@@ -275,7 +325,7 @@ ColumnLayout {
                 delegate: PresetButton {
                     required property string modelData
                     name: modelData
-                    onPicked: { root.triggerLightning(); Eq.applyPreset(name); }
+                    onPicked: Eq.applyPreset(name)
                 }
             }
         }

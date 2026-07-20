@@ -107,7 +107,38 @@ void MprisPlayer::applyPlayerProps(const QVariantMap &props) {
         m_canGoPrevious = unwrap(props.value(QStringLiteral("CanGoPrevious"))).toBool();
     if (has("CanSeek")) m_canSeek = unwrap(props.value(QStringLiteral("CanSeek"))).toBool();
     if (has("CanControl")) m_canControl = unwrap(props.value(QStringLiteral("CanControl"))).toBool();
+    if (has("Volume")) m_volume = unwrap(props.value(QStringLiteral("Volume"))).toDouble();
+    if (has("Shuffle")) m_shuffle = unwrap(props.value(QStringLiteral("Shuffle"))).toBool();
+    if (has("LoopStatus"))
+        m_loopStatus = unwrap(props.value(QStringLiteral("LoopStatus"))).toString();
 
+    emit changed();
+}
+
+void MprisPlayer::setPlayerProp(const QString &name, const QVariant &value) {
+    auto bus = QDBusConnection::sessionBus();
+    QDBusMessage msg =
+        QDBusMessage::createMethodCall(m_service, kPath, kPropsIface, QStringLiteral("Set"));
+    msg << QString::fromLatin1(kPlayerIface) << name << QVariant::fromValue(QDBusVariant(value));
+    bus.asyncCall(msg);
+}
+
+void MprisPlayer::setVolume(double v) {
+    v = qBound(0.0, v, 1.0);
+    m_volume = v;
+    setPlayerProp(QStringLiteral("Volume"), v);
+    emit changed();
+}
+
+void MprisPlayer::setShuffle(bool on) {
+    m_shuffle = on;
+    setPlayerProp(QStringLiteral("Shuffle"), on);
+    emit changed();
+}
+
+void MprisPlayer::setLoopStatus(const QString &status) {
+    m_loopStatus = status;
+    setPlayerProp(QStringLiteral("LoopStatus"), status);
     emit changed();
 }
 

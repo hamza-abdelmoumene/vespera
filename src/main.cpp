@@ -25,11 +25,14 @@
 #include <QQuickStyle>
 
 #include "core/AppController.h"
+#include "core/AppImageProvider.h"
 #include "core/CavaService.h"
 #include "core/ControlAdaptor.h"
+#include "core/CoverStore.h"
 #include "core/EqService.h"
 #include "core/LyricsService.h"
 #include "core/MprisController.h"
+#include "core/ThemeManager.h"
 
 namespace {
 constexpr auto kService = "org.vespera.Vespera";
@@ -71,8 +74,10 @@ QString commandMethod(const QString &arg) {
 
 // Developer/CI screenshot mode: render the UI offscreen at an exact size and
 // save a PNG. Intended to be run with:
-//   QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
-//     vespera --capture <w> <h> <out.png> [compact]
+//   QT_QPA_PLATFORM=offscreen vespera --capture <w> <h> <out.png> [compact]
+// (default RHI backend — QT_QUICK_BACKEND=software kills the effects layer.
+// The per-panel glass blur does not render offscreen either way; captures use
+// the C++ frost fallback, so the real glass must be verified live.)
 int runCapture(int argc, char **argv) {
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("vespera"));
@@ -82,13 +87,15 @@ int runCapture(int argc, char **argv) {
     const int h = argc > 3 ? QString::fromLocal8Bit(argv[3]).toInt() : 640;
     const QString out =
         argc > 4 ? QString::fromLocal8Bit(argv[4]) : QStringLiteral("vespera.png");
-    bool compact = false, demo = false;
+    bool compact = false, demo = false, picker = false, interact = false;
     int demoVariant = 0;
     for (int i = 5; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("compact")) compact = true;
         else if (a == QLatin1String("demo")) demo = true;
         else if (a == QLatin1String("demo2")) { demo = true; demoVariant = 1; }
+        else if (a == QLatin1String("picker")) picker = true;
+        else if (a == QLatin1String("interact")) interact = true;
     }
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
@@ -98,14 +105,35 @@ int runCapture(int argc, char **argv) {
     auto *lyrics = new vespera::LyricsService(&app);
     auto *cava = new vespera::CavaService(&app);
     auto *eq = new vespera::EqService(&app);
+    auto *style = new vespera::ThemeManager(mpris, &app);
+    auto *coverStore = new vespera::CoverStore(&app);
+    auto *imageProvider = new vespera::AppImageProvider(coverStore);
+    QObject::connect(mpris, &vespera::MprisController::artImageReady, coverStore,
+                     &vespera::CoverStore::setSource);
+    // backdrop grade follows the theme (saturation · brightness · luminance floor)
+    auto applyGrade = [style, coverStore] {
+        coverStore->setGrade(style->coverSaturation(), style->coverBrightness(),
+                             style->lumFloor());
+    };
+    QObject::connect(style, &vespera::ThemeManager::changed, coverStore, applyGrade);
+    applyGrade();
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("vespera"), imageProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("Player"), mpris);
     engine.rootContext()->setContextProperty(QStringLiteral("App"), appc);
     engine.rootContext()->setContextProperty(QStringLiteral("Lyrics"), lyrics);
     engine.rootContext()->setContextProperty(QStringLiteral("Cava"), cava);
     engine.rootContext()->setContextProperty(QStringLiteral("Eq"), eq);
+    engine.rootContext()->setContextProperty(QStringLiteral("Style"), style);
+    engine.rootContext()->setContextProperty(QStringLiteral("Cover"), coverStore);
     engine.rootContext()->setContextProperty(QStringLiteral("startCompact"), compact);
+    // capture-only hooks: drive the transient EQ effect + lyrics hand-scroll
+    // state so those interactions can be screenshotted deterministically.
+    engine.rootContext()->setContextProperty(QStringLiteral("captureTide"), interact);
+    engine.rootContext()->setContextProperty(QStringLiteral("captureScrolled"), interact);
+    // offscreen capture can't render the effects layer — panels fall back to frost
+    engine.rootContext()->setContextProperty(QStringLiteral("glassAvailable"), false);
     engine.loadFromModule("Vespera", "Main");
     if (engine.rootObjects().isEmpty()) {
         QQmlComponent probe(&engine);
@@ -125,10 +153,23 @@ int runCapture(int argc, char **argv) {
         lyrics->loadDemo();
         cava->loadDemo();
         eq->loadDemo();
+        // demo art never reaches the store via MPRIS; seed it with the synthetic
+        // cover so the blurred backdrop renders in captures.
+        coverStore->setSource(imageProvider->coverImage(demoVariant));
+    }
+    if (interact) {
+        // fire the EQ preset-change moment so the capture lands mid-flight
+        // (comet head + shockwave + echoes visible), not at rest. The delay is
+        // tunable via VESPERA_FX_DELAY for screenshotting different points in
+        // the animation (default: early, while the shockwave ring is visible).
+        const int fxDelay = qEnvironmentVariableIntValue("VESPERA_FX_DELAY") > 0
+                                 ? qEnvironmentVariableIntValue("VESPERA_FX_DELAY") : 120;
+        QTimer::singleShot(fxDelay, eq, [eq]() { eq->applyPreset(QStringLiteral("Bass")); });
     }
 
     win->resize(w, h);
     win->setVisible(true);
+    if (picker) win->setProperty("pickerOpen", QVariant(true));
 
     // Demo data is static (no network); live captures wait for metadata + art +
     // lyrics to arrive. Then grab and quit.
@@ -252,18 +293,40 @@ int main(int argc, char **argv) {
     vespera::LyricsService lyrics;
     vespera::CavaService cava;
     vespera::EqService eq;
+    vespera::ThemeManager style(&mpris);
+    vespera::CoverStore coverStore;
+    auto *imageProvider = new vespera::AppImageProvider(&coverStore);
+    QObject::connect(&mpris, &vespera::MprisController::artImageReady, &coverStore,
+                     &vespera::CoverStore::setSource);
+    // backdrop grade follows the theme (saturation · brightness · luminance floor)
+    auto applyGrade = [&style, &coverStore] {
+        coverStore.setGrade(style.coverSaturation(), style.coverBrightness(),
+                            style.lumFloor());
+    };
+    QObject::connect(&style, &vespera::ThemeManager::changed, &coverStore, applyGrade);
+    applyGrade();
     new vespera::ControlAdaptor(&appController);
     if (becameOwner)
         bus.registerObject(QString::fromLatin1(kPath), &appController,
                            QDBusConnection::ExportAdaptors);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("vespera"), imageProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("Player"), &mpris);
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &appController);
     engine.rootContext()->setContextProperty(QStringLiteral("Lyrics"), &lyrics);
     engine.rootContext()->setContextProperty(QStringLiteral("Cava"), &cava);
     engine.rootContext()->setContextProperty(QStringLiteral("Eq"), &eq);
+    engine.rootContext()->setContextProperty(QStringLiteral("Style"), &style);
+    engine.rootContext()->setContextProperty(QStringLiteral("Cover"), &coverStore);
     engine.rootContext()->setContextProperty(QStringLiteral("startCompact"), compact);
+    engine.rootContext()->setContextProperty(QStringLiteral("captureTide"), false);
+    engine.rootContext()->setContextProperty(QStringLiteral("captureScrolled"), false);
+    // real per-panel backdrop-blur glass; VESPERA_NO_GLASS forces the frost
+    // fallback (GlassPanel additionally checks for the software render backend)
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("glassAvailable"),
+        !qEnvironmentVariableIsSet("VESPERA_NO_GLASS"));
 
     engine.loadFromModule("Vespera", "Main");
     if (engine.rootObjects().isEmpty()) {

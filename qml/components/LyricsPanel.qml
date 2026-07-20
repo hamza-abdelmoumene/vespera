@@ -1,42 +1,30 @@
-// Synced lyrics — centred current line, click-to-seek, ±0.25s per-track offset,
-// resync. Highlight is interpolated between position polls for smoothness.
+// Synced lyrics in a glass panel — centred current line, click-to-seek,
+// ±0.25s per-track offset, resync.
+//
+// Scrolling: the list follows the song automatically, smoothly centring the
+// current line (ApplyRange + highlightMoveDuration). The moment you scroll by
+// hand, auto-follow yields — your position sticks — and a "Resume" affordance
+// appears. After a few idle seconds (or a tap on Resume) it eases the current
+// line back to centre and resumes following.
 import QtQuick
 import Vespera
 
-Rectangle {
+GlassPanel {
     id: root
-
-    radius: Theme.rMd
-    color: Theme.alpha(Player.base, 0.35)
-    border.width: 1
-    border.color: Theme.alpha("#ffffff", 0.08)
-
-    // glass sheen — a hairline of light along the top edge
-    Rectangle {
-        anchors { left: parent.left; right: parent.right; top: parent.top }
-        anchors.leftMargin: parent.radius
-        anchors.rightMargin: parent.radius
-        height: 1
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: "transparent" }
-            GradientStop { position: 0.5; color: Theme.alpha("#ffffff", 0.14) }
-            GradientStop { position: 1.0; color: "transparent" }
-        }
-    }
 
     // interpolated playback position (poll cadence is coarse; advance locally)
     property real estPos: Player.position
     property double _t0: Date.now()
+    function pushFollow() { if (list.following) list.currentIndex = Lyrics.indexForTime(root.estPos); }
     Connections {
         target: Player
-        function onPositionChanged() { root.estPos = Player.position; root._t0 = Date.now(); }
+        function onPositionChanged() { root.estPos = Player.position; root._t0 = Date.now(); root.pushFollow(); }
     }
     Timer {
         interval: 120
         running: Player.playing && root.visible && Lyrics.hasLyrics
         repeat: true
-        onTriggered: root.estPos = Player.position + (Date.now() - root._t0) / 1000
+        onTriggered: { root.estPos = Player.position + (Date.now() - root._t0) / 1000; root.pushFollow(); }
     }
 
     Column {
@@ -55,11 +43,12 @@ Rectangle {
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 7; height: 7; radius: 2; rotation: 45
-                    color: Player.accentAlt
+                    color: Style.accent
                 }
                 Text {
                     text: "Lyrics"
-                    color: Player.accentAlt
+                    color: Style.accent
+                    font.family: Style.displayFamily
                     font.pixelSize: Theme.fTitle
                     font.weight: Font.DemiBold
                     font.letterSpacing: Theme.trackLabel
@@ -75,7 +64,8 @@ Rectangle {
                     text: Lyrics.loading ? "syncing…"
                         : hasOffset ? ((Lyrics.offset > 0 ? "+" : "") + Lyrics.offset.toFixed(2) + "s")
                         : (Lyrics.hasLyrics ? "synced" : "")
-                    color: hasOffset && !Lyrics.loading ? "#e8c07d" : Theme.alpha(Player.text, 0.45)
+                    color: hasOffset && !Lyrics.loading ? "#e8c07d" : Theme.alpha(Style.text, 0.45)
+                    font.family: Style.monoFamily
                     font.pixelSize: Theme.fCaption
                     font.letterSpacing: 1
                     rightPadding: Theme.s2
@@ -104,16 +94,40 @@ Rectangle {
                 model: Lyrics.lyrics
                 spacing: Theme.s3
                 clip: true
+                interactive: true
                 boundsBehavior: Flickable.StopAtBounds
-                interactive: false
+                flickDeceleration: 3500
 
-                currentIndex: {
-                    model;  // re-evaluate when lyrics change
-                    return Lyrics.indexForTime(root.estPos);
+                // auto-follow lever: while following, currentIndex tracks the song
+                // and ApplyRange keeps it centred; hand-scrolling freezes it.
+                // `moving` is set only by user gestures (drag / flick / wheel), not
+                // by the programmatic ApplyRange recentre, so it's the clean signal
+                // that the listener took over.
+                property bool following: true
+                function refollow() {
+                    following = true;
+                    currentIndex = Lyrics.indexForTime(root.estPos);
                 }
-                onModelChanged: Qt.callLater(() => positionViewAtIndex(currentIndex, ListView.Center))
+                function userTook() { following = false; idle.restart(); }
+                Timer { id: idle; interval: 3400; onTriggered: list.refollow() }
+
+                onMovingChanged: if (moving) userTook()
+
+                onModelChanged: Qt.callLater(() => { refollow(); positionViewAtIndex(currentIndex, ListView.Center); })
+
+                // capture-only: enter the hand-scrolled state so the Resume
+                // affordance + take-over can be screenshotted.
+                Timer {
+                    running: captureScrolled
+                    interval: 250
+                    onTriggered: {
+                        list.userTook();
+                        list.contentY = Math.min(Math.max(0, list.contentHeight - list.height),
+                                                 list.contentY + 150);
+                    }
+                }
                 highlightRangeMode: ListView.ApplyRange
-                highlightMoveDuration: 320
+                highlightMoveDuration: 380
                 preferredHighlightBegin: (height - (currentItem ? currentItem.implicitHeight : 0)) / 2
                 preferredHighlightEnd: (height + (currentItem ? currentItem.implicitHeight : 0)) / 2
 
@@ -125,10 +139,10 @@ Rectangle {
                     text: modelData !== "" ? modelData : "· · ·"
                     textFormat: Text.PlainText
                     horizontalAlignment: Text.AlignLeft
-                    color: ListView.isCurrentItem ? Player.text
-                         : lineMa.containsMouse ? Theme.alpha(Player.text, 0.75)
-                         : Theme.alpha(Player.text, 0.38)
-                    font.pixelSize: ListView.isCurrentItem ? 17 : 14
+                    color: ListView.isCurrentItem ? Style.text
+                         : lineMa.containsMouse ? Theme.alpha(Style.text, 0.75)
+                         : Theme.alpha(Style.text, 0.34)
+                    font.pixelSize: ListView.isCurrentItem ? 18 : 14
                     font.weight: ListView.isCurrentItem ? Font.DemiBold : Font.Normal
                     wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                     Behavior on color { ColorAnimation { duration: 300 } }
@@ -146,29 +160,43 @@ Rectangle {
                 }
             }
 
-            // soft top/bottom fades so lines dissolve toward the edges and the
-            // current line reads as the focus. Fades toward shadow (not the base
-            // tint, which can be lighter than the backdrop) so it works on any
-            // palette. Purely decorative — no input.
+            // resume affordance — only while hand-scrolled away from the song
             Rectangle {
-                anchors { left: parent.left; right: parent.right; top: parent.top }
-                height: 40
-                visible: Lyrics.hasLyrics
-                gradient: Gradient {
-                    orientation: Gradient.Vertical
-                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.45) }
-                    GradientStop { position: 1.0; color: "transparent" }
+                id: resume
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Theme.s3
+                visible: Lyrics.hasLyrics && !list.following
+                width: resumeRow.width + Theme.s4
+                height: 28
+                radius: 14
+                color: Theme.alpha(Style.accent, 0.9)
+                Row {
+                    id: resumeRow
+                    anchors.centerIn: parent
+                    spacing: Theme.s1
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "↺"
+                        color: Style.base
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Resume"
+                        color: Style.base
+                        font.pixelSize: Theme.fCaption
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 1
+                    }
                 }
-            }
-            Rectangle {
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: 40
-                visible: Lyrics.hasLyrics
-                gradient: Gradient {
-                    orientation: Gradient.Vertical
-                    GradientStop { position: 0.0; color: "transparent" }
-                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.45) }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: list.refollow()
                 }
+                Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
             }
 
             // empty / loading
@@ -179,7 +207,7 @@ Rectangle {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: Lyrics.loading ? "◌" : "◈"
-                    color: Theme.alpha(Player.text, 0.4)
+                    color: Theme.alpha(Style.text, 0.4)
                     font.pixelSize: 28
                     RotationAnimation on rotation {
                         from: 0; to: 360; duration: 1600
@@ -190,14 +218,14 @@ Rectangle {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: Lyrics.loading ? "Loading lyrics…" : "No lyrics found"
-                    color: Theme.alpha(Player.text, 0.5)
+                    color: Theme.alpha(Style.text, 0.5)
                     font.pixelSize: Theme.fLabel
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: !Lyrics.loading
                     text: "click to retry"
-                    color: retryMa.containsMouse ? Theme.alpha(Player.text, 0.75) : Theme.alpha(Player.text, 0.4)
+                    color: retryMa.containsMouse ? Theme.alpha(Style.text, 0.75) : Theme.alpha(Style.text, 0.4)
                     font.pixelSize: Theme.fCaption
                     font.letterSpacing: 1
                 }

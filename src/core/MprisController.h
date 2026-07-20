@@ -43,6 +43,10 @@ class MprisController : public QObject {
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
     Q_PROPERTY(double length READ length NOTIFY activeChanged)
 
+    Q_PROPERTY(double volume READ volume NOTIFY activeChanged)
+    Q_PROPERTY(bool shuffle READ shuffle NOTIFY activeChanged)
+    Q_PROPERTY(QString loopStatus READ loopStatus NOTIFY activeChanged)
+
     Q_PROPERTY(QColor accent READ accent NOTIFY paletteChanged)
     Q_PROPERTY(QColor accentAlt READ accentAlt NOTIFY paletteChanged)
     Q_PROPERTY(QColor base READ base NOTIFY paletteChanged)
@@ -70,6 +74,10 @@ public:
     double position() const { return m_position; }
     double length() const;
 
+    double volume() const;
+    bool shuffle() const;
+    QString loopStatus() const;
+
     // The *shown* palette is a cross-fade toward the target (see applyPalette);
     // reading it here is what makes the whole UI recolour smoothly per track.
     QColor accent() const { return m_shown.accent; }
@@ -82,6 +90,9 @@ public:
     Q_INVOKABLE void previous();
     Q_INVOKABLE void seekTo(double seconds);
     Q_INVOKABLE void seekBy(double seconds);
+    Q_INVOKABLE void setVolume(double v);
+    Q_INVOKABLE void toggleShuffle();
+    Q_INVOKABLE void cycleLoop();
 
     // Deterministic fake state for screenshots (see `vespera --capture ... demo`).
     // `variant` selects one of a couple of invented tracks + palettes so the
@@ -93,6 +104,9 @@ signals:
     void playersChanged();
     void positionChanged();
     void paletteChanged();
+    // The decoded cover image for the active track (null when there's no art),
+    // used to feed the blurred backdrop. Emitted alongside palette extraction.
+    void artImageReady(const QImage &image);
 
 private slots:
     void onNameOwnerChanged(const QString &name, const QString &oldOwner,

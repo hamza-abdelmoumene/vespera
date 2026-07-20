@@ -1,33 +1,37 @@
-// M1 layout: a centred now-playing column (cover · title/artist · seek ·
-// transport) over the scene. Responsive reflow and the lyrics/EQ columns
-// arrive in M2/M3.
+// Compact hero: disc, title/artist, seek and the glass transport pill, all
+// as ONE block that centres itself in whatever room is available — so it
+// stays balanced at any window size instead of anchoring from a fixed edge.
 import QtQuick
+import QtQuick.Layouts
 import Vespera
 
 Item {
     id: root
-    property bool compact: false
+    property bool compact: true
     readonly property bool has: Player.hasPlayer
-    readonly property real coverSize: Math.max(120, Math.min(root.width * 0.55,
-                                               root.height * 0.5, root.compact ? 200 : 300))
 
-    Column {
-        id: col
+    ColumnLayout {
+        id: block
         anchors.centerIn: parent
-        width: Math.min(parent.width - Theme.s6 * 2, root.compact ? 300 : 440)
-        spacing: root.compact ? Theme.s4 : Theme.s5
+        width: Math.min(root.width - Theme.s5 * 2, 360)
+        spacing: Theme.s4
 
-        CoverArt {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: root.coverSize
-            height: root.coverSize
-            source: Player.artUrl
-            accent: Player.accent
-            base: Player.base
+        Item {
+            id: discWrap
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: discSize
+            Layout.preferredHeight: discSize
+            readonly property real discSize: Math.max(96, Math.min(block.width * 0.86, root.height * 0.44, 260))
+
+            EclipseDisc {
+                anchors.fill: parent
+                arcCenter: 0
+                arcSpan: Math.PI * 2   // full halo ring — the disc reads whole, matching the expanded pane
+            }
         }
 
         Column {
-            width: parent.width
+            Layout.fillWidth: true
             spacing: Theme.s1
             Text {
                 width: parent.width
@@ -35,48 +39,63 @@ Item {
                 text: root.has ? (Player.title !== "" ? Player.title : "Unknown title")
                                : "Nothing playing"
                 textFormat: Text.PlainText
-                color: Player.text
-                font.pixelSize: root.compact ? Theme.fTitle : Theme.fDisplay
+                color: Style.text
+                font.family: Style.displayFamily
+                font.pixelSize: Theme.fDisplay
                 font.weight: Font.DemiBold
-                font.letterSpacing: Theme.trackTight
                 elide: Text.ElideRight
                 maximumLineCount: 1
+                style: Text.Raised
+                styleColor: Theme.alpha("#000000", 0.25)
             }
             Text {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: root.has ? Player.artist : "Start a track in any player"
                 textFormat: Text.PlainText
-                color: Theme.alpha(Player.text, 0.6)
-                font.pixelSize: root.compact ? Theme.fLabel : Theme.fBody
+                color: Theme.alpha(Style.text, 0.78)
+                font.family: Style.monoFamily
+                font.pixelSize: Theme.fCaption
+                font.letterSpacing: Theme.trackCaps
+                font.capitalization: Font.AllUppercase
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
         }
 
         SeekBar {
-            width: parent.width
+            Layout.fillWidth: true
             visible: root.has
             position: Player.position
             duration: Player.length
-            accent: Player.accent
-            trackColor: Theme.alpha(Player.text, 0.16)
-            textColor: Theme.alpha(Player.text, 0.7)
+            accent: Style.accent
+            accentAlt: Style.accentAlt
+            trackColor: Theme.alpha("#ffffff", 0.22)
+            textColor: Theme.alpha(Style.text, 0.75)
             onSeek: (s) => Player.seekTo(s)
         }
 
-        TransportBar {
-            anchors.horizontalCenter: parent.horizontalCenter
+        GlassPanel {
+            Layout.alignment: Qt.AlignHCenter
             visible: root.has
-            playing: Player.playing
-            accent: Player.accent
-            iconColor: Player.text
-            accentInk: Player.base
-            canPrev: Player.canGoPrevious
-            canNext: Player.canGoNext
-            onPrev: Player.previous()
-            onPlayPause: Player.playPause()
-            onNext: Player.next()
+            implicitWidth: pillRow.width + Theme.s5 * 2
+            implicitHeight: 56
+            radius: 28
+            TransportBar {
+                id: pillRow
+                anchors.centerIn: parent
+                spacing: Theme.s5
+                playing: Player.playing
+                accent: Style.accent
+                accentAlt: Style.accentAlt
+                iconColor: Style.text
+                accentInk: Style.base
+                canPrev: Player.canGoPrevious
+                canNext: Player.canGoNext
+                onPrev: Player.previous()
+                onPlayPause: Player.playPause()
+                onNext: Player.next()
+            }
         }
     }
 }

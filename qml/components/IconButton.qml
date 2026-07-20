@@ -7,17 +7,20 @@ Item {
     id: root
     property string kind: "resync"   // minus | plus | resync
     property bool spinning: false
-    property color color: Player.text
+    property color color: Style.text
     signal tapped()
 
     implicitWidth: 28
     implicitHeight: 28
     opacity: enabled ? 1.0 : 0.35
 
+    scale: ma.pressed ? 0.88 : 1.0
+    Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+
     Rectangle {
         anchors.fill: parent
         radius: Theme.rSm
-        color: ma.containsMouse && root.enabled ? Theme.alpha(Player.text, 0.10) : "transparent"
+        color: ma.containsMouse && root.enabled ? Theme.alpha(Style.text, 0.10) : "transparent"
         Behavior on color { ColorAnimation { duration: 150 } }
     }
 

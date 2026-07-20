@@ -7,6 +7,7 @@ Row {
     spacing: Theme.s6
 
     property color accent: "#6fe9ff"
+    property color accentAlt: "#b490ff"
     property color iconColor: "#eaf2ff"
     property color accentInk: "#04121b"  // icon colour drawn on top of the accent fill
     property bool playing: false
@@ -29,7 +30,9 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         glyph: root.playing ? "pause" : "play"
         primary: true
+        active: root.playing
         accent: root.accent
+        accentAlt: root.accentAlt
         iconColor: root.accentInk
         onClicked: root.playPause()
     }
