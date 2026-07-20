@@ -1,10 +1,16 @@
-// 10-band equalizer — big, glassy, and expressive (the reference look).
+// 10-band equalizer — big, glassy, and expressive.
 //
-// The gain curve threads through the ten handle positions and is ALWAYS
-// there (not a transient flash) — it just smoothly re-shapes itself as the
-// sliders move, whether that's a hand-drag or a preset applying. A brief,
-// clean brightness pulse (no filled glow shape, no shadow blob) marks the
-// moment something changes. The live cava trace above rides independently.
+// At rest: plain sliders, nothing else — zero idle repaint. Applying a preset
+// fires "the lightning": a jagged, 4-layer glowing bolt sweeps left to right
+// through the ten band positions, and each slider reacts as the bolt reaches
+// it — a shockwave ring, a bright surge travelling up the fill, the handle
+// flashing and blooming — then everything fades back to silence. This is a
+// faithful port of the owner's own caelestia MusicPopup equalizer (the exact
+// reference for "the transition effect"): ~/.config/quickshell/hud/music/
+// MusicPopup.qml, eqLightning* state + lightningCanvas. Ported 1:1 onto
+// vespera's Eq singleton and theme tokens — same timings, same layered-stroke
+// technique, same per-slider cascade — swapping Catppuccin accents for
+// Style.accent/root.warm/root.glowB so it recolours with the theme.
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Effects
@@ -17,25 +23,34 @@ ColumnLayout {
 
     readonly property var labels: ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
     // a pure warm gold, barely tinted by the theme — kept saturated on purpose
-    // so the curve reads as ITS OWN thing, never blended into the ambient crest
+    // so the bolt reads as ITS OWN thing, never blended into the ambient crest
     readonly property color warm: Theme.mix("#ffb35c", Style.accentAlt, 0.16)
     readonly property color glowB: Theme.mix("#ff7a7a", Style.accent, 0.2)
 
-    // the sliders' own live (Behavior-animated) positions — the curve reads
-    // these every frame they move, so it re-shapes in step with the handles
-    // instead of jump-cutting to the new gain values
+    // the sliders' own live (Behavior-animated) positions — the lightning
+    // canvas reads these every frame it repaints, so the bolt threads through
+    // wherever the handles actually are, mid-drag or mid-preset-animation
     property var liveBands: [Eq.band(1), Eq.band(2), Eq.band(3), Eq.band(4), Eq.band(5),
                               Eq.band(6), Eq.band(7), Eq.band(8), Eq.band(9), Eq.band(10)]
-    function setLive(i, v) { liveBands[i] = v; gainFx.requestPaint(); }
+    function setLive(i, v) { liveBands[i] = v; }
 
-    // a brief, localised-nowhere brightness pulse — alpha/width only, never a
-    // filled shape — marking a preset apply or a released slider
-    property real pulse: 0
-    NumberAnimation { id: pulseAnim; target: root; property: "pulse"; from: 1; to: 0
-                       duration: 700; easing.type: Easing.OutCubic }
+    // ---- the lightning: event-driven only, never idle ----
+    property real lightningProgress: 0.0   // 0..10, sweeps left to right
+    property real lightningFade: 1.0       // 0 fresh .. 1 fully gone
+    SequentialAnimation {
+        id: lightningAnim
+        running: false
+        ScriptAction { script: { root.lightningFade = 0.0; root.lightningProgress = 0.0; } }
+        NumberAnimation { target: root; property: "lightningProgress"; from: 0.0; to: 10.0
+                           duration: 650; easing.type: Easing.OutSine }
+        PauseAnimation { duration: 150 }
+        NumberAnimation { target: root; property: "lightningFade"; from: 0.0; to: 1.0
+                           duration: 800; easing.type: Easing.OutQuad }
+        ScriptAction { script: { root.lightningProgress = 0.0; } }
+    }
     Connections {
         target: Eq
-        function onPresetChanged() { if (Eq.preset !== "Custom") pulseAnim.restart(); }
+        function onPresetChanged() { if (Eq.preset !== "Custom") lightningAnim.restart(); }
     }
 
     // ---- header ----
@@ -81,6 +96,7 @@ ColumnLayout {
         Row {
             id: eqRow
             anchors.fill: parent
+            anchors.bottomMargin: 18
             z: 1
             Repeater {
                 model: 10
@@ -89,6 +105,29 @@ ColumnLayout {
                     required property int index
                     width: eqRow.width / 10
                     height: eqRow.height
+
+                    // ---- this band's place in the sweep ----
+                    readonly property real dist: root.lightningProgress - cell.index
+                    readonly property real hitPulse: dist >= 0 && dist < 1.0 ? Math.sin(dist * Math.PI) : 0.0
+                    property real trackPulse: 0.0
+                    property real ringPulse: 0.0
+                    property real flashFade: 0.0
+                    property bool hasFired: false
+                    onDistChanged: {
+                        if (dist <= 0.05) hasFired = false;
+                        else if (dist > 0.4 && !hasFired) {
+                            hasFired = true;
+                            trackPulseAnim.restart();
+                            ringPulseAnim.restart();
+                            flashFadeAnim.restart();
+                        }
+                    }
+                    NumberAnimation { id: trackPulseAnim; target: cell; property: "trackPulse"
+                                       from: 0.0; to: 1.0; duration: 900; easing.type: Easing.OutQuart }
+                    NumberAnimation { id: ringPulseAnim; target: cell; property: "ringPulse"
+                                       from: 1.0; to: 0.0; duration: 1300; easing.type: Easing.OutExpo }
+                    NumberAnimation { id: flashFadeAnim; target: cell; property: "flashFade"
+                                       from: 1.0; to: 0.0; duration: 1300; easing.type: Easing.OutSine }
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -112,34 +151,99 @@ ColumnLayout {
                                 enabled: !sld.pressed
                                 NumberAnimation { duration: 340; easing.type: Easing.OutQuart }
                             }
-                            // every frame this animates (drag OR preset apply), the gain
-                            // curve re-shapes in step — no separate "trace" animation needed
                             onValueChanged: root.setLive(cell.index, value)
                             onPressedChanged: {
-                                if (!pressed) {
-                                    Eq.setBand(cell.index + 1, Math.round(value));
-                                    pulseAnim.restart();   // single-band edits get a brightness pulse too
-                                }
+                                if (!pressed) Eq.setBand(cell.index + 1, Math.round(value));
                             }
 
                             background: Rectangle {
+                                id: trackBg
                                 x: sld.leftPadding + (sld.availableWidth - width) / 2
                                 y: sld.topPadding
                                 width: 5
                                 height: sld.availableHeight
                                 radius: 2.5
                                 color: Theme.alpha("#ffffff", 0.16)
+
+                                // shockwave ring — fires once as the bolt passes this band.
+                                // Standalone MultiEffect (not layer.effect): item layering
+                                // doesn't render on the offscreen/software RHI path this app
+                                // also uses for CI captures, but a sibling MultiEffect with an
+                                // explicit source does — same visual, more reliable.
                                 Rectangle {
+                                    id: ringShape
+                                    z: -1
+                                    anchors.centerIn: parent
+                                    width: parent.width + 14 + cell.ringPulse * 26
+                                    height: parent.height + 10 + cell.ringPulse * 40
+                                    radius: parent.radius + 8 + cell.ringPulse * 14
+                                    color: "transparent"
+                                    border.color: root.warm
+                                    border.width: 1.5 + cell.ringPulse * 3
+                                    opacity: cell.ringPulse * 0.8 * (1.0 - root.lightningFade)
+                                    visible: opacity > 0.005
+                                }
+                                MultiEffect {
+                                    anchors.fill: ringShape
+                                    source: ringShape
+                                    z: -2
+                                    visible: ringShape.visible
+                                    blurEnabled: true
+                                    blurMax: 24
+                                    blur: 1.0
+                                }
+
+                                // fill — a hot glowing tip at rest; a flash wash + a
+                                // travelling surge bolt when the lightning hits
+                                Item {
                                     width: parent.width
                                     height: (1 - sld.visualPosition) * parent.height
                                     y: sld.visualPosition * parent.height
-                                    radius: parent.radius
-                                    // a hot, glowing tip at the fill's leading edge rather than a
-                                    // flat two-stop fill — reads as lit, not just coloured
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: Theme.mix(Style.accent, "#ffffff", 0.55) }
-                                        GradientStop { position: 0.18; color: Style.accent }
-                                        GradientStop { position: 1.0; color: Theme.mix(Style.accent, Style.accentAlt, 0.85) }
+                                    clip: true
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 2.5
+                                        gradient: Gradient {
+                                            GradientStop { position: 0.0; color: Theme.mix(Style.accent, "#ffffff", 0.55) }
+                                            GradientStop { position: 0.18; color: Style.accent }
+                                            GradientStop { position: 1.0; color: Theme.mix(Style.accent, Style.accentAlt, 0.85) }
+                                        }
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            opacity: cell.flashFade
+                                            gradient: Gradient {
+                                                GradientStop { position: 0.0; color: root.warm }
+                                                GradientStop { position: 0.5; color: Style.accent }
+                                                GradientStop { position: 1.0; color: "transparent" }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            id: surgeBolt
+                                            width: parent.width
+                                            height: 44
+                                            y: (cell.trackPulse * (parent.height + height)) - height
+                                            opacity: Math.sin(cell.trackPulse * Math.PI) * 1.6 * (1.0 - root.lightningFade)
+                                            visible: opacity > 0.005
+                                            gradient: Gradient {
+                                                GradientStop { position: 0.0; color: "transparent" }
+                                                GradientStop { position: 0.2; color: Style.accent }
+                                                GradientStop { position: 0.5; color: "#ffffff" }
+                                                GradientStop { position: 0.8; color: root.warm }
+                                                GradientStop { position: 1.0; color: "transparent" }
+                                            }
+                                        }
+                                        MultiEffect {
+                                            anchors.fill: surgeBolt
+                                            source: surgeBolt
+                                            visible: surgeBolt.visible
+                                            shadowEnabled: true
+                                            shadowColor: Style.accent
+                                            shadowBlur: 1.0
+                                            shadowOpacity: 1.0
+                                        }
                                     }
                                 }
                             }
@@ -150,10 +254,29 @@ ColumnLayout {
                                 width: 18; height: 18; radius: 9
                                 color: "#ffffff"
                                 readonly property real energy: sld.pressed ? 1.0 : sld.hovered ? 0.5 : 0.0
-                                scale: 1.0 + energy * 0.2
+                                scale: 1.0 + energy * 0.2 + cell.hitPulse * 0.35 * (1.0 - root.lightningFade)
                                 border.width: 2
                                 border.color: Style.accent
                                 Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+
+                                Rectangle {
+                                    id: handleBloom
+                                    anchors.centerIn: parent
+                                    width: parent.width + 30 * cell.hitPulse
+                                    height: width; radius: width / 2
+                                    color: root.warm
+                                    opacity: cell.hitPulse * (1.0 - root.lightningFade)
+                                    visible: opacity > 0.005
+                                }
+                                MultiEffect {
+                                    anchors.fill: handleBloom
+                                    source: handleBloom
+                                    z: -1
+                                    visible: handleBloom.visible
+                                    blurEnabled: true
+                                    blurMax: 24
+                                    blur: 1.0
+                                }
                             }
                         }
                         Text {
@@ -169,135 +292,87 @@ ColumnLayout {
             }
         }
 
-        // ---- the gain curve: ONE line, always present, connecting the ten
-        // handles — the whole signature. It re-shapes itself in step with the
-        // sliders (drag or preset apply), never a separate trace-in animation.
-        // The glow is a real blur of a THICK stroke sitting behind a thin
-        // crisp core — that's what makes it read as a lit, soft ribbon
-        // instead of a hairline (no filled glow shapes, no shadow rectangle).
-        Item {
-            id: gainLayer
+        // ---- the bolt itself: 4 stacked noisy strokes (wide+dim to
+        // hairline+bright), redrawn every frame while active. Pure event
+        // flourish — the Timer only runs during the sweep/fade window.
+        Canvas {
+            id: lightningCanvas
             anchors.fill: parent
             anchors.bottomMargin: 18
             z: 2
+            opacity: 1.0 - root.lightningFade
+            renderTarget: Canvas.FramebufferObject
 
-            function curveY(f, h) {
-                const p = f * 9;
-                const i0 = Math.floor(p), t = p - i0, i1 = Math.min(9, i0 + 1);
-                const a = root.liveBands[i0], b = root.liveBands[i1];
-                const s = t * t * (3 - 2 * t);                    // smoothstep
-                const v = a * (1 - s) + b * s;                    // -12..12
-                const norm = (v + 12) / 24;                       // 0..1
-                return (1 - norm) * (h - 12) + 6;
+            Timer {
+                interval: 16
+                running: root.lightningFade < 1.0 && root.lightningProgress > 0.0
+                repeat: true
+                onTriggered: lightningCanvas.requestPaint()
             }
-            function buildPath(ctx, w, h) {
-                const N = 90;
+
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.clearRect(0, 0, width, height);
+                if (root.lightningProgress <= 0.0 || root.lightningFade >= 1.0) return;
+
+                const time = Date.now() / 1000;
+                const maxIdx = root.lightningProgress;
+                const w = width, h = height;
+                ctx.lineJoin = "round"; ctx.lineCap = "round";
+
                 const pts = [];
-                for (let k = 0; k < N; k++) {
-                    const f = k / (N - 1);
-                    pts.push({ x: f * w, y: gainLayer.curveY(f, h) });
+                for (let i = 0; i < 10; i++) {
+                    const norm = 1.0 - ((root.liveBands[i] + 12) / 24);
+                    const py = 10 + norm * (h - 30);
+                    const px = (i + 0.5) * (w / 10);
+                    pts.push({ x: px, y: py });
                 }
-                ctx.beginPath();
-                ctx.moveTo(pts[0].x, pts[0].y);
-                for (let i = 1; i < pts.length - 1; i++) {
-                    const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
-                    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-                }
-                ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-                return pts;
-            }
-            function repaint() { glowSrc.requestPaint(); gainFx.requestPaint(); }
 
-            // the glow source — a thick, saturated stroke with nothing else on
-            // it. This is what gets blurred; it never renders on screen itself.
-            Canvas {
-                id: glowSrc
-                anchors.fill: parent
-                renderTarget: Canvas.FramebufferObject
-                visible: false
-                onPaint: {
-                    const ctx = getContext("2d");
-                    ctx.reset();
-                    const w = width, h = height;
-                    const p = root.pulse;
-                    gainLayer.buildPath(ctx, w, h);
-                    ctx.lineJoin = "round"; ctx.lineCap = "round";
-                    const lg = ctx.createLinearGradient(0, 0, w, 0);
-                    lg.addColorStop(0.0, root.warm);
-                    lg.addColorStop(0.5, Qt.lighter(root.warm, 1.2 + p * 0.15));
-                    lg.addColorStop(1.0, root.glowB);
-                    ctx.strokeStyle = lg;
-                    ctx.lineWidth = 13 + p * 7;
-                    ctx.globalAlpha = 0.9;
-                    ctx.stroke();
-                }
-            }
-            MultiEffect {
-                anchors.fill: glowSrc
-                source: glowSrc
-                z: -1
-                blurEnabled: true
-                blur: 0.72 + root.pulse * 0.22
-                blurMax: 56
-                brightness: 0.16 + root.pulse * 0.14
-                saturation: 0.08
-            }
+                for (let s = 0; s < 4; s++) {
+                    ctx.beginPath();
+                    ctx.moveTo(pts[0].x, pts[0].y);
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        if (i > maxIdx) break;
+                        const p1 = pts[i], p2 = pts[i + 1];
+                        let fraction = 1.0;
+                        if (maxIdx < i + 1) fraction = maxIdx - i;
 
-            // the crisp layer on top: silhouette wash + a thin bright core +
-            // small dot markers at each band
-            Canvas {
-                id: gainFx
-                anchors.fill: parent
-                renderTarget: Canvas.FramebufferObject
-                onPaint: {
-                    const ctx = getContext("2d");
-                    ctx.reset();
-                    const w = width, h = height;
-                    const p = root.pulse;   // 0 at rest .. 1 right after a change
-
-                    const pts = gainLayer.buildPath(ctx, w, h);
-                    ctx.lineJoin = "round"; ctx.lineCap = "round";
-
-                    // soft filled wash under the line down to the floor
-                    ctx.lineTo(pts[pts.length - 1].x, h);
-                    ctx.lineTo(pts[0].x, h);
-                    ctx.closePath();
-                    const fg = ctx.createLinearGradient(0, 0, 0, h);
-                    fg.addColorStop(0.0, Theme.alpha(root.warm, 0.22 + p * 0.12));
-                    fg.addColorStop(1.0, Theme.alpha(root.warm, 0.0));
-                    ctx.fillStyle = fg;
-                    ctx.fill();
-
-                    // thin bright core — the glow layer behind supplies the bloom
-                    gainLayer.buildPath(ctx, w, h);
-                    const lg = ctx.createLinearGradient(0, 0, w, 0);
-                    lg.addColorStop(0.0, Qt.lighter(root.warm, 1.1));
-                    lg.addColorStop(0.5, "#ffffff");
-                    lg.addColorStop(1.0, Qt.lighter(root.glowB, 1.15));
-                    ctx.strokeStyle = lg;
-                    ctx.lineWidth = 1.8 + p * 1.0;
-                    ctx.stroke();
-
-                    // small dot markers at each band — the connect-the-dots read
-                    // from the reference, a soft core that breathes with the pulse
-                    for (let b = 0; b < 10; b++) {
-                        const f = (b + 0.5) / 10;
-                        const x = f * w, y = gainLayer.curveY(f, h);
-                        const rr = 4 + p * 3;
-                        const dg = ctx.createRadialGradient(x, y, 0, x, y, rr);
-                        dg.addColorStop(0.0, Theme.alpha("#ffffff", 0.95));
-                        dg.addColorStop(0.6, Theme.alpha("#ffffff", 0.5 + p * 0.35));
-                        dg.addColorStop(1.0, "transparent");
-                        ctx.fillStyle = dg;
-                        ctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
-                        ctx.fillStyle = Theme.alpha(root.warm, 0.9);
-                        ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+                        const steps = s === 3 ? 6 : 8;
+                        for (let j = 1; j <= steps; j++) {
+                            let t = j / steps;
+                            if (t > fraction) t = fraction;
+                            const cx = p1.x + (p2.x - p1.x) * t;
+                            const cy = p1.y + (p2.y - p1.y) * t;
+                            const envelope = Math.sin(t * Math.PI);
+                            const noiseAmpX = s === 3 ? 1.0 : (4 - s) * 3;
+                            const noiseAmpY = s === 3 ? 1.0 : (4 - s) * 4;
+                            const sepWaveX = (s < 2) ? Math.sin(time * 3 + i + j + s) * 8 * envelope : 0;
+                            const sepWaveY = (s < 2) ? Math.cos(time * 2.5 + i - j - s) * 10 * envelope : 0;
+                            const noiseX = Math.sin(time * (10 + s) + i + j) * Math.cos(time * 8 - i + j)
+                                          * noiseAmpX * envelope * (1 - root.lightningFade);
+                            const noiseY = Math.cos(time * (9 - s) + i - j) * Math.sin(time * 7 + i - j)
+                                          * noiseAmpY * envelope * (1 - root.lightningFade);
+                            ctx.lineTo(cx + sepWaveX + noiseX, cy + sepWaveY + noiseY);
+                            if (t === fraction) break;
+                        }
                     }
+                    if (s === 0) { ctx.lineWidth = 16; ctx.strokeStyle = root.warm; ctx.globalAlpha = 0.2; }
+                    else if (s === 1) { ctx.lineWidth = 7; ctx.strokeStyle = root.glowB; ctx.globalAlpha = 0.45; }
+                    else if (s === 2) { ctx.lineWidth = 3; ctx.strokeStyle = Style.accent; ctx.globalAlpha = 0.85; }
+                    else { ctx.lineWidth = 1; ctx.strokeStyle = "#ffffff"; ctx.globalAlpha = 0.15; }
+                    ctx.stroke();
                 }
-                Component.onCompleted: requestPaint()
-                Connections { target: Style; function onChanged() { gainLayer.repaint(); } }
             }
-            Connections { target: root; function onPulseChanged() { gainLayer.repaint(); } }
+        }
+        MultiEffect {
+            anchors.fill: lightningCanvas
+            source: lightningCanvas
+            z: 1.5
+            visible: lightningCanvas.opacity > 0.005
+            shadowEnabled: true
+            shadowColor: root.warm
+            shadowBlur: 1.0
+            shadowOpacity: 0.5
         }
     }
 
