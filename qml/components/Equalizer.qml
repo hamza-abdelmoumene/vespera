@@ -22,36 +22,48 @@ ColumnLayout {
     spacing: Theme.s3
 
     readonly property var labels: ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
-    // a pure warm gold, barely tinted by the theme — kept saturated on purpose
-    // so the bolt reads as ITS OWN thing, never blended into the ambient crest
-    readonly property color warm: Theme.mix("#ffb35c", Style.accentAlt, 0.16)
-    readonly property color glowB: Theme.mix("#ff7a7a", Style.accent, 0.2)
 
-    // the sliders' own live (Behavior-animated) positions — the lightning
-    // canvas reads these every frame it repaints, so the bolt threads through
-    // wherever the handles actually are, mid-drag or mid-preset-animation
+    // ---- palette for the smooth sweep ----
+    // The transition is a smooth glowing CURVE now, not a jagged bolt (the old
+    // noisy zigzag read as a "kid's random drawing"). Colours come from the theme
+    // accent/accentAlt so it's elegant, luminous light; boltHue drives the gentle
+    // per-band hue shimmer, and achromatic accents (Noir) fall back to a soft
+    // electric violet so the effect never goes flat grey.
+    readonly property bool boltAchroma: Style.accent.hslSaturation < 0.15
+    readonly property real boltHue: boltAchroma ? 0.76 : Style.accent.hslHue
+    // soft, luminous accents for the per-band pulses — gentle, never harsh
+    readonly property color warm: Theme.mix(Style.accentAlt, "#ffffff", 0.28)
+    readonly property color glowB: Theme.mix(Style.accent, "#ffffff", 0.15)
+
+    // the sliders' own live (Behavior-animated) positions — the sweep canvas reads
+    // these every frame it repaints, so the curve threads through wherever the
+    // handles actually are, mid-drag or mid-preset-animation
     property var liveBands: [Eq.band(1), Eq.band(2), Eq.band(3), Eq.band(4), Eq.band(5),
                               Eq.band(6), Eq.band(7), Eq.band(8), Eq.band(9), Eq.band(10)]
     function setLive(i, v) { liveBands[i] = v; }
 
-    // ---- the lightning: event-driven only, never idle ----
-    property real lightningProgress: 0.0   // 0..10, sweeps left to right
+    // ---- the smooth sweep: event-driven only, never idle ----
+    // (property names kept from the old effect so the per-band pulse code below is
+    // unchanged: progress 0..10 is the reveal front, fade 0..1 dissolves it.)
+    property real lightningProgress: 0.0   // 0..10, the reveal front sweeping L→R
     property real lightningFade: 1.0       // 0 fresh .. 1 fully gone
     SequentialAnimation {
         id: lightningAnim
         running: false
         ScriptAction { script: { root.lightningFade = 0.0; root.lightningProgress = 0.0; } }
         NumberAnimation { target: root; property: "lightningProgress"; from: 0.0; to: 10.0
-                           duration: 650; easing.type: Easing.OutSine }
-        PauseAnimation { duration: 150 }
+                           duration: 780; easing.type: Easing.InOutCubic }
+        PauseAnimation { duration: 220 }
         NumberAnimation { target: root; property: "lightningFade"; from: 0.0; to: 1.0
-                           duration: 800; easing.type: Easing.OutQuad }
+                           duration: 760; easing.type: Easing.InOutQuad }
         ScriptAction { script: { root.lightningProgress = 0.0; } }
     }
     Connections {
         target: Eq
-        function onPresetChanged() { if (Eq.preset !== "Custom") lightningAnim.restart(); }
+        function onPresetChanged() { if (Style.eqEffectOn && Eq.preset !== "Custom") lightningAnim.restart(); }
     }
+    // fire the sweep on a single-band edit too, so any EQ change gets the effect
+    function pulse() { if (Style.eqEffectOn) lightningAnim.restart(); }
 
     // ---- header ----
     RowLayout {
@@ -153,7 +165,7 @@ ColumnLayout {
                             }
                             onValueChanged: root.setLive(cell.index, value)
                             onPressedChanged: {
-                                if (!pressed) Eq.setBand(cell.index + 1, Math.round(value));
+                                if (!pressed) { Eq.setBand(cell.index + 1, Math.round(value)); root.pulse(); }
                             }
 
                             background: Rectangle {
@@ -174,13 +186,13 @@ ColumnLayout {
                                     id: ringShape
                                     z: -1
                                     anchors.centerIn: parent
-                                    width: parent.width + 14 + cell.ringPulse * 26
-                                    height: parent.height + 10 + cell.ringPulse * 40
-                                    radius: parent.radius + 8 + cell.ringPulse * 14
+                                    width: parent.width + 14 + cell.ringPulse * 24
+                                    height: parent.height + 10 + cell.ringPulse * 38
+                                    radius: parent.radius + 7 + cell.ringPulse * 13
                                     color: "transparent"
                                     border.color: root.warm
-                                    border.width: 1.5 + cell.ringPulse * 3
-                                    opacity: cell.ringPulse * 0.8 * (1.0 - root.lightningFade)
+                                    border.width: 1.5 + cell.ringPulse * 2.5
+                                    opacity: cell.ringPulse * 0.55 * (1.0 - root.lightningFade)
                                     visible: opacity > 0.005
                                 }
                                 MultiEffect {
@@ -223,9 +235,9 @@ ColumnLayout {
                                         Rectangle {
                                             id: surgeBolt
                                             width: parent.width
-                                            height: 44
+                                            height: 56
                                             y: (cell.trackPulse * (parent.height + height)) - height
-                                            opacity: Math.sin(cell.trackPulse * Math.PI) * 1.6 * (1.0 - root.lightningFade)
+                                            opacity: Math.sin(cell.trackPulse * Math.PI) * 2.2 * (1.0 - root.lightningFade)
                                             visible: opacity > 0.005
                                             gradient: Gradient {
                                                 GradientStop { position: 0.0; color: "transparent" }
@@ -254,7 +266,7 @@ ColumnLayout {
                                 width: 18; height: 18; radius: 9
                                 color: "#ffffff"
                                 readonly property real energy: sld.pressed ? 1.0 : sld.hovered ? 0.5 : 0.0
-                                scale: 1.0 + energy * 0.2 + cell.hitPulse * 0.35 * (1.0 - root.lightningFade)
+                                scale: 1.0 + energy * 0.2 + cell.hitPulse * 0.44 * (1.0 - root.lightningFade)
                                 border.width: 2
                                 border.color: Style.accent
                                 Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
@@ -262,9 +274,13 @@ ColumnLayout {
                                 Rectangle {
                                     id: handleBloom
                                     anchors.centerIn: parent
-                                    width: parent.width + 30 * cell.hitPulse
+                                    width: parent.width + 44 * cell.hitPulse
                                     height: width; radius: width / 2
-                                    color: root.warm
+                                    // a subtle, BALANCED hue shimmer across the bands
+                                    // (centred on the accent, ±13°) so the cascade reads
+                                    // as distinct hits sweeping across without any band
+                                    // sliding into a clashing colour
+                                    color: Qt.hsla((root.boltHue + (cell.index - 4.5) * 0.008 + 1.0) % 1.0, 0.94, 0.73, 1.0)
                                     opacity: cell.hitPulse * (1.0 - root.lightningFade)
                                     visible: opacity > 0.005
                                 }
@@ -292,14 +308,16 @@ ColumnLayout {
             }
         }
 
-        // ---- the bolt itself: 4 stacked noisy strokes (wide+dim to
-        // hairline+bright), redrawn every frame while active. Pure event
-        // flourish — the Timer only runs during the sweep/fade window.
+        // ---- the smooth sweep ---- a single flowing, glowing curve traced through
+        // the band tops (smooth quadratic, NO noise), revealed left→right with a
+        // bright energy head at the front, then dissolved. Layered soft glow + a
+        // crisp bright core reads as elegant liquid light, not a jagged scribble.
+        // Event-driven; the Timer only runs during the sweep window.
         Canvas {
             id: lightningCanvas
             anchors.fill: parent
             anchors.bottomMargin: 18
-            z: 2
+            z: 0.1   // behind the sliders (eqRow z:1): the curve glows up through the tracks
             opacity: 1.0 - root.lightningFade
             renderTarget: Canvas.FramebufferObject
 
@@ -315,11 +333,13 @@ ColumnLayout {
                 ctx.clearRect(0, 0, width, height);
                 if (root.lightningProgress <= 0.0 || root.lightningFade >= 1.0) return;
 
-                const time = Date.now() / 1000;
-                const maxIdx = root.lightningProgress;
                 const w = width, h = height;
-                ctx.lineJoin = "round"; ctx.lineCap = "round";
+                const u = Math.max(1.0, Math.min(2.2, w / 620));
+                const gs = Style.glowStrength;
+                const prog = Math.min(1.0, root.lightningProgress / 10.0);   // reveal 0..1
+                const frontX = prog * w;
 
+                // band tops (read live so the bolt follows the handles as they settle)
                 const pts = [];
                 for (let i = 0; i < 10; i++) {
                     const norm = 1.0 - ((root.liveBands[i] + 12) / 24);
@@ -328,46 +348,68 @@ ColumnLayout {
                     pts.push({ x: px, y: py });
                 }
 
-                for (let s = 0; s < 4; s++) {
-                    ctx.beginPath();
-                    ctx.moveTo(pts[0].x, pts[0].y);
-                    for (let i = 0; i < pts.length - 1; i++) {
-                        if (i > maxIdx) break;
-                        const p1 = pts[i], p2 = pts[i + 1];
-                        let fraction = 1.0;
-                        if (maxIdx < i + 1) fraction = maxIdx - i;
-
-                        const steps = s === 3 ? 6 : 8;
-                        for (let j = 1; j <= steps; j++) {
-                            let t = j / steps;
-                            if (t > fraction) t = fraction;
-                            const cx = p1.x + (p2.x - p1.x) * t;
-                            const cy = p1.y + (p2.y - p1.y) * t;
-                            const envelope = Math.sin(t * Math.PI);
-                            const noiseAmpX = s === 3 ? 1.0 : (4 - s) * 3;
-                            const noiseAmpY = s === 3 ? 1.0 : (4 - s) * 4;
-                            const sepWaveX = (s < 2) ? Math.sin(time * 3 + i + j + s) * 8 * envelope : 0;
-                            const sepWaveY = (s < 2) ? Math.cos(time * 2.5 + i - j - s) * 10 * envelope : 0;
-                            const noiseX = Math.sin(time * (10 + s) + i + j) * Math.cos(time * 8 - i + j)
-                                          * noiseAmpX * envelope * (1 - root.lightningFade);
-                            const noiseY = Math.cos(time * (9 - s) + i - j) * Math.sin(time * 7 + i - j)
-                                          * noiseAmpY * envelope * (1 - root.lightningFade);
-                            ctx.lineTo(cx + sepWaveX + noiseX, cy + sepWaveY + noiseY);
-                            if (t === fraction) break;
-                        }
-                    }
-                    if (s === 0) { ctx.lineWidth = 16; ctx.strokeStyle = root.warm; ctx.globalAlpha = 0.2; }
-                    else if (s === 1) { ctx.lineWidth = 7; ctx.strokeStyle = root.glowB; ctx.globalAlpha = 0.45; }
-                    else if (s === 2) { ctx.lineWidth = 3; ctx.strokeStyle = Style.accent; ctx.globalAlpha = 0.85; }
-                    else { ctx.lineWidth = 1; ctx.strokeStyle = "#ffffff"; ctx.globalAlpha = 0.15; }
-                    ctx.stroke();
+                // a DESIGNED zigzag between the band anchors — two deterministic jag
+                // points per segment, offset perpendicular in alternating directions.
+                // Deterministic (index-based, no per-frame randomness) so it's a
+                // clean, stable lightning bolt, not a scribble; the amplitudes vary
+                // just enough to feel organic. Rounded joins + the soft glow layers
+                // keep it smooth and professional rather than razor-jagged.
+                const zig = [pts[0]];
+                for (let i = 0; i < pts.length - 1; i++) {
+                    const a = pts[i], b = pts[i + 1];
+                    const dx = b.x - a.x, dy = b.y - a.y;
+                    const L = Math.max(1, Math.hypot(dx, dy));
+                    const nx = -dy / L, ny = dx / L;            // unit perpendicular
+                    const a1 = (9 + ((i * 7) % 8)) * u;
+                    const a2 = (9 + ((i * 5 + 3) % 8)) * u;
+                    zig.push({ x: a.x + dx * 0.36 + nx * a1, y: a.y + dy * 0.36 + ny * a1 });
+                    zig.push({ x: a.x + dx * 0.68 - nx * a2, y: a.y + dy * 0.68 - ny * a2 });
+                    zig.push(b);
                 }
+                function trace() {
+                    ctx.beginPath();
+                    ctx.moveTo(zig[0].x, zig[0].y);
+                    for (let i = 1; i < zig.length; i++) ctx.lineTo(zig[i].x, zig[i].y);
+                }
+                ctx.lineJoin = "round"; ctx.lineCap = "round";
+
+                // reveal: only the swept-past portion of the bolt is drawn
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(0, 0, frontX + 1.5, h);
+                ctx.clip();
+
+                // a gentle gradient along the bolt, accent → accentAlt
+                const grad = ctx.createLinearGradient(0, 0, w, 0);
+                grad.addColorStop(0.0, Style.accent);
+                grad.addColorStop(1.0, Style.accentAlt);
+
+                trace(); ctx.strokeStyle = grad; ctx.globalAlpha = 0.12 + 0.14 * gs; ctx.lineWidth = 20 * u; ctx.stroke();
+                trace(); ctx.strokeStyle = grad; ctx.globalAlpha = 0.5;               ctx.lineWidth = 7 * u;  ctx.stroke();
+                trace(); ctx.strokeStyle = Theme.mix(Style.accentAlt, "#ffffff", 0.72); ctx.globalAlpha = 0.95; ctx.lineWidth = 2.2 * u; ctx.stroke();
+                ctx.restore();
+
+                // bright energy head riding the front of the reveal
+                if (prog < 0.998) {
+                    const fi = Math.max(0, Math.min(9, prog * 10 - 0.5));
+                    const lo = Math.floor(fi), frac = fi - lo, hi = Math.min(9, lo + 1);
+                    const fy = pts[lo].y + (pts[hi].y - pts[lo].y) * frac;
+                    const br = (18 + 12 * gs) * u;
+                    const bg = ctx.createRadialGradient(frontX, fy, 0, frontX, fy, br);
+                    bg.addColorStop(0.0, Theme.alpha("#ffffff", 0.95));
+                    bg.addColorStop(0.35, Theme.alpha(root.warm, 0.7));
+                    bg.addColorStop(1.0, "transparent");
+                    ctx.globalAlpha = 1.0;
+                    ctx.fillStyle = bg;
+                    ctx.beginPath(); ctx.arc(frontX, fy, br, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.globalAlpha = 1.0;
             }
         }
         MultiEffect {
             anchors.fill: lightningCanvas
             source: lightningCanvas
-            z: 1.5
+            z: 0.05   // soft bloom just under the crisp curve, still behind sliders
             visible: lightningCanvas.opacity > 0.005
             shadowEnabled: true
             shadowColor: root.warm

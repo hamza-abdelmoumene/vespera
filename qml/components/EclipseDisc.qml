@@ -34,9 +34,14 @@ Item {
             ctx.reset();
             const c = width / 2;
             const r = root.discD / 2;
-            const g = ctx.createRadialGradient(c, c, r * 0.92, c, c, r * 1.16);
+            const gs = Style.glowStrength;
+            // a tight rim halo hugging the artwork so the disc reads as the light
+            // SOURCE — the broad bloom into the room is DiscGlow, behind this. Kept
+            // restrained (and on the master glow knob) so it never over-glows.
+            const g = ctx.createRadialGradient(c, c, r * 0.9, c, c, r * 1.2);
             g.addColorStop(0.0, "transparent");
-            g.addColorStop(0.35, Theme.alpha(Style.accent, 0.16));
+            g.addColorStop(0.32, Theme.alpha(Style.accent, 0.22 * gs));
+            g.addColorStop(0.62, Theme.alpha(Theme.mix(Style.accent, Style.accentAlt, 0.4), 0.10 * gs));
             g.addColorStop(1.0, "transparent");
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, width, height);

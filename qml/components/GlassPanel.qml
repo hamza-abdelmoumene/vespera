@@ -86,8 +86,8 @@ Item {
                     autoPaddingEnabled: false
                     blurEnabled: true
                     blurMax: 64
-                    blur: 0.74          // a shade past the interview's "Frost" recipe
-                    saturation: 0.4
+                    blur: 0.86          // glassier — heavier frost so the orbs melt behind
+                    saturation: 0.55    // keep the refracted orb colour alive through the frost
                     maskEnabled: true
                     maskSource: maskShape
                 }

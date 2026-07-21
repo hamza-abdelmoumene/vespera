@@ -12,7 +12,8 @@ Item {
     property bool animate: true
     property real intensity: 1.0
 
-    readonly property real planetSize: Math.max(120, Math.min(width, height) * 0.24)
+    // canvas is sized to hold the whole sphere + ring so nothing clips at the edge
+    readonly property real planetSize: Math.max(140, Math.min(width, height) * 0.30)
 
     // ---- twinkling stars ----
     Repeater {
@@ -117,15 +118,15 @@ Item {
         height: scene.planetSize
         anchors.right: parent.right
         anchors.top: parent.top
-        // clipped by the right edge, but fully below the window chrome so it
-        // never sits behind the header buttons
-        anchors.rightMargin: -width * 0.45
-        anchors.topMargin: 48
+        // fully on-screen in the top-right (was pushed off the edge and clipped);
+        // the sphere+ring both fit inside the canvas now, so nothing is cut off
+        anchors.rightMargin: Math.max(24, scene.width * 0.04)
+        anchors.topMargin: 56
         onPaint: {
             const ctx = getContext("2d");
             ctx.reset();
-            const w = width, h = height, cx = w / 2, cy = h / 2, r = w * 0.4;
-            const ringR = r * 1.85;
+            const w = width, h = height, cx = w / 2, cy = h / 2, r = w * 0.30;
+            const ringR = r * 1.5;
 
             // soft atmosphere glow
             const atm = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, r * 1.35);

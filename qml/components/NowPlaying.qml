@@ -23,6 +23,15 @@ Item {
             Layout.preferredHeight: discSize
             readonly property real discSize: Math.max(96, Math.min(block.width * 0.86, root.height * 0.44, 260))
 
+            // ambient bloom radiating from the art (see PlayerPane) — unclipped so
+            // it spills softly around the disc into the compact hero's space
+            DiscGlow {
+                anchors.centerIn: parent
+                width: discWrap.discSize * 2.3
+                height: width
+                z: -1
+            }
+
             EclipseDisc {
                 anchors.fill: parent
                 arcCenter: 0

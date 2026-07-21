@@ -8,9 +8,17 @@
 // line back to centre and resumes following.
 import QtQuick
 import Vespera
+import "../blockfont.js" as BlockFont
 
 GlassPanel {
     id: root
+
+    // Two ways to read along: the scrolling synced LIST (click-to-seek, offset)
+    // and a big ASCII BLOCK-LETTER karaoke view — the current line drawn in chunky
+    // █-glyphs, the way the owner's terminal tool "lyricsooo" does it. The choice
+    // is a shared, persisted setting (Style) so both this pane's header toggle and
+    // the settings menu drive the same state.
+    readonly property bool blockMode: Style.lyricsBlockMode
 
     // interpolated playback position (poll cadence is coarse; advance locally)
     property real estPos: Player.position
@@ -58,6 +66,42 @@ GlassPanel {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.s1
+
+                // mode toggle: big block-letters <-> synced list. The 2x2 "blocks"
+                // glyph fills with the accent when block mode is on.
+                Rectangle {
+                    id: modeToggle
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 26; height: 22; radius: Theme.rSm
+                    color: root.blockMode ? Theme.alpha(Style.accent, 0.9)
+                                          : (modeMa.containsMouse ? Theme.alpha(Style.text, 0.14)
+                                                                  : Theme.alpha(Style.text, 0.06))
+                    border.width: 1
+                    border.color: root.blockMode ? "transparent" : Theme.alpha(Style.text, 0.18)
+                    visible: Lyrics.hasLyrics
+                    Grid {
+                        anchors.centerIn: parent
+                        columns: 2
+                        rowSpacing: 2
+                        columnSpacing: 2
+                        Repeater {
+                            model: 4
+                            Rectangle {
+                                width: 5; height: 5; radius: 1
+                                color: root.blockMode ? Style.base : Theme.alpha(Style.text, 0.7)
+                            }
+                        }
+                    }
+                    MouseArea {
+                        id: modeMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Style.lyricsBlockMode = !Style.lyricsBlockMode
+                    }
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                }
+
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     readonly property bool hasOffset: Math.abs(Lyrics.offset) > 0.01
@@ -90,7 +134,7 @@ GlassPanel {
             ListView {
                 id: list
                 anchors.fill: parent
-                visible: Lyrics.hasLyrics
+                visible: Lyrics.hasLyrics && !root.blockMode
                 model: Lyrics.lyrics
                 spacing: Theme.s3
                 clip: true
@@ -160,13 +204,122 @@ GlassPanel {
                 }
             }
 
+            // ---- big ASCII block-letter karaoke view ----
+            // The current lyric line rendered as chunky █-glyphs (BlockFont), sized
+            // to fill the pane via Text.Fit, in the album accent; the next line sits
+            // small and dim beneath for a beat of lead-in. Synced off the same
+            // interpolated position as the list.
+            Item {
+                id: blockView
+                anchors.fill: parent
+                visible: Lyrics.hasLyrics && root.blockMode
+
+                readonly property int curIdx: Lyrics.hasLyrics ? Lyrics.indexForTime(root.estPos) : -1
+                readonly property string curText:
+                    (curIdx >= 0 && curIdx < Lyrics.lyrics.length) ? Lyrics.lyrics[curIdx] : ""
+                readonly property string nextText:
+                    (curIdx + 1 >= 0 && curIdx + 1 < Lyrics.lyrics.length) ? Lyrics.lyrics[curIdx + 1] : ""
+                // narrower column budget => the line wraps to more stacked rows =>
+                // bigger letters filling this tall pane. Clamped so wide panes still
+                // break long lines instead of shrinking them to nothing.
+                readonly property int cols: Math.max(13, Math.min(48, Math.round(width / 11)))
+
+                // the block grid, painted cell-by-cell so every letter is crisp
+                Canvas {
+                    id: blockCanvas
+                    anchors.fill: parent
+                    anchors.bottomMargin: nextLine.visible ? nextLine.height + Theme.s4 : 0
+                    renderTarget: Canvas.FramebufferObject
+
+                    property var lines: blockView.curText !== ""
+                                        ? BlockFont.grid(blockView.curText, blockView.cols) : []
+                    property color ink: Style.accent
+                    onLinesChanged: requestPaint()
+                    onInkChanged: requestPaint()
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+
+                    onPaint: {
+                        const ctx = getContext("2d");
+                        ctx.reset();
+                        const rows = lines.length;
+                        if (rows === 0) {
+                            // interlude / gap between lines — three soft dots
+                            ctx.fillStyle = Theme.alpha(Style.text, 0.3);
+                            const dr = Math.max(3, Math.min(width, height) * 0.011);
+                            for (let k = -1; k <= 1; k++) {
+                                ctx.beginPath();
+                                ctx.arc(width / 2 + k * dr * 6, height / 2, dr, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
+                            return;
+                        }
+                        let maxc = 0;
+                        for (let i = 0; i < rows; i++) maxc = Math.max(maxc, lines[i].length);
+                        if (maxc === 0) return;
+                        // fit the grid keeping a terminal-ish cell aspect (a hair
+                        // taller than wide), then centre it in the pane
+                        const aspect = 0.62;   // cellW / cellH
+                        const cellH = Math.min(height / rows, width / (maxc * aspect));
+                        const cellW = cellH * aspect;
+                        const oy = (height - rows * cellH) / 2;
+                        // One SHARED integer origin + a shared fractional cell grid,
+                        // and centre each row by a whole number of CELLS (like the
+                        // terminal tool space-pads on its character grid). Every cell
+                        // in every row then lands on the same sub-pixel phase, so
+                        // vertical strokes line up across rows and there's no moiré —
+                        // per-ROW pixel centring put each row on its own phase and
+                        // garbled letters with fine internal detail (O/M/E).
+                        const ox = Math.round((width - maxc * cellW) / 2);
+                        ctx.fillStyle = blockCanvas.ink;
+                        for (let r = 0; r < rows; r++) {
+                            // NB: do NOT trim trailing spaces here — the 5 pixel-lines
+                            // of a word-row are all equal width, but letters like E/F/L
+                            // carry trailing spaces on some rows, so trimming would make
+                            // those lines shorter and shear the word apart (the bug that
+                            // garbled HOME/ONE/MORE). Blank cells simply aren't filled.
+                            const line = lines[r];
+                            const pad = Math.floor((maxc - line.length) / 2);   // centre in whole cells
+                            const y0 = Math.round(oy + r * cellH);
+                            const y1 = Math.round(oy + (r + 1) * cellH);
+                            for (let c = 0; c < line.length; c++) {
+                                if (line.charAt(c) === "█") {
+                                    const x0 = Math.round(ox + (c + pad) * cellW);
+                                    const x1 = Math.round(ox + (c + pad + 1) * cellW);
+                                    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+                                }
+                            }
+                        }
+                    }
+                    Connections { target: Style; function onChanged() { blockCanvas.ink = Style.accent; } }
+                }
+
+                Text {
+                    id: nextLine
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    horizontalAlignment: Text.AlignHCenter
+                    visible: blockView.nextText !== ""
+                    text: blockView.nextText
+                    textFormat: Text.PlainText
+                    color: Theme.alpha(Style.text, 0.42)
+                    font.family: Style.monoFamily
+                    font.pixelSize: Theme.fBody
+                    font.letterSpacing: 1
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
+            }
+
             // resume affordance — only while hand-scrolled away from the song
             Rectangle {
                 id: resume
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.s3
-                visible: Lyrics.hasLyrics && !list.following
+                visible: Lyrics.hasLyrics && !root.blockMode && !list.following
                 width: resumeRow.width + Theme.s4
                 height: 28
                 radius: 14

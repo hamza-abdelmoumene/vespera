@@ -13,14 +13,18 @@ Window {
     minimumWidth: 340
     minimumHeight: 400
     title: qsTr("Vespera")
-    // Style.base is cross-faded in C++ (per track AND per theme), so the whole
-    // window recolours in unison — no local Behavior, which would double-animate.
-    color: Style.base
+    // Transparent clear colour: the backdrop paints an album-tinted ground whose
+    // opacity the user controls (Style.bgOpacity), so dialing transparency down lets
+    // the compositor's desktop blur show through. At bgOpacity=1 the ground is fully
+    // opaque, so it looks solid on compositors without blur too.
+    color: "transparent"
 
     property bool userCompact: startCompact
     readonly property bool compact: userCompact || width < 640
-    readonly property bool showLyrics: !compact && width >= 900
+    // lyrics show when there's room AND the user hasn't hidden the pane
+    readonly property bool showLyrics: !compact && width >= 900 && !Style.lyricsHidden
     property bool pickerOpen: false
+    property bool helpOpen: false
 
     // Per-mode geometry persistence (~/.config/vespera/vespera.conf).
     Settings {
@@ -37,7 +41,11 @@ Window {
         else
             Lyrics.clearTrack();
     }
-    Component.onCompleted: pushTrack()
+    Component.onCompleted: {
+        pushTrack();
+        // first launch: welcome the user with the tutorial, then remember it
+        if (!Style.tutorialSeen) win.helpOpen = true;
+    }
     Connections {
         target: Player
         function onActiveChanged() { win.pushTrack(); }
@@ -121,6 +129,56 @@ Window {
             anchors.right: parent.right
             anchors.rightMargin: Theme.s4
             spacing: Theme.s3
+
+            // help / tutorial
+            ChromeIcon {
+                id: helpChrome
+                tip: "Help"
+                onTapped: win.helpOpen = true
+                Text {
+                    anchors.centerIn: parent
+                    text: "?"
+                    color: Theme.alpha(Style.text, helpChrome.hovered ? 0.95 : 0.6)
+                    font.family: Style.monoFamily
+                    font.pixelSize: Theme.fBody
+                    font.weight: Font.Bold
+                }
+            }
+
+            // lyrics pane toggle — hide/show the lyrics bar
+            ChromeIcon {
+                id: lyricsChrome
+                visible: !win.compact && win.width >= 900
+                tip: Style.lyricsHidden ? "Show lyrics" : "Hide lyrics"
+                onTapped: Style.lyricsHidden = !Style.lyricsHidden
+                Item {
+                    id: lyricsIcon
+                    anchors.centerIn: parent
+                    width: 16; height: 14
+                    readonly property color ink: Theme.alpha(Style.text,
+                        Style.lyricsHidden ? (lyricsChrome.hovered ? 0.6 : 0.35)
+                                           : (lyricsChrome.hovered ? 0.95 : 0.7))
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 3
+                        Repeater {
+                            model: [11, 16, 13]
+                            Rectangle {
+                                required property var modelData
+                                width: modelData; height: 1.6; radius: 1
+                                color: lyricsIcon.ink
+                            }
+                        }
+                    }
+                    // slash when hidden
+                    Rectangle {
+                        visible: Style.lyricsHidden
+                        anchors.centerIn: parent
+                        width: 20; height: 1.6; radius: 1; rotation: -32
+                        color: lyricsIcon.ink
+                    }
+                }
+            }
 
             // theme switcher — a two-tone disc (accent / accentAlt)
             ChromeIcon {
@@ -291,13 +349,25 @@ Window {
         onRequestClose: win.pickerOpen = false
     }
 
+    // tutorial / help overlay (above the picker)
+    HelpOverlay {
+        anchors.fill: parent
+        z: 30
+        open: win.helpOpen
+        onRequestClose: {
+            win.helpOpen = false;
+            Style.tutorialSeen = true;   // remember once dismissed
+        }
+    }
+
     // keyboard shortcuts (match the reference popup)
     Shortcut { sequence: "Space"; onActivated: Player.playPause() }
     Shortcut { sequence: "Right"; onActivated: if (Player.canSeek) Player.seekBy(5) }
     Shortcut { sequence: "Left"; onActivated: if (Player.canSeek) Player.seekBy(-5) }
     Shortcut { sequences: ["N", "Media Next"]; onActivated: Player.next() }
     Shortcut { sequences: ["P", "Media Previous"]; onActivated: Player.previous() }
-    Shortcut { sequence: "Escape"; onActivated: win.pickerOpen = false }
+    Shortcut { sequence: "Escape"; onActivated: { if (win.helpOpen) { win.helpOpen = false; Style.tutorialSeen = true; } win.pickerOpen = false; } }
+    Shortcut { sequences: ["?", "F1"]; onActivated: win.helpOpen = true }
 
     Connections {
         target: App

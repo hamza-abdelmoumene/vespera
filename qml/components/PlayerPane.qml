@@ -55,6 +55,17 @@ Item {
                     Layout.preferredHeight: root.discSize
                     Layout.alignment: Qt.AlignVCenter
 
+                    // ambient bloom radiating from the art into the surrounding
+                    // glass — sized well past the disc, unclipped so it spills into
+                    // the pane. This is the album's colour source now, not a
+                    // full-bleed backdrop. Drawn first so it sits behind the disc.
+                    DiscGlow {
+                        anchors.centerIn: parent
+                        width: root.discSize * 2.7
+                        height: width
+                        z: -1
+                    }
+
                     EclipseDisc {
                         anchors.fill: parent
                         arcCenter: 0

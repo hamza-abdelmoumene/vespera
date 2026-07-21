@@ -113,9 +113,16 @@ class ThemeManager : public QObject {
     Q_PROPERTY(qreal accentHue READ accentHue WRITE setAccentHue NOTIFY changed)
 
     // absolute knobs (no theme default to fall back to). Persisted.
-    Q_PROPERTY(qreal eqCavaIntensity READ eqCavaIntensity WRITE setEqCavaIntensity NOTIFY changed)
     Q_PROPERTY(qreal discSpin READ discSpin WRITE setDiscSpin NOTIFY changed)
     Q_PROPERTY(bool reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY changed)
+    Q_PROPERTY(qreal orbIntensity READ orbIntensity WRITE setOrbIntensity NOTIFY changed)
+    Q_PROPERTY(qreal glowStrength READ glowStrength WRITE setGlowStrength NOTIFY changed)
+    Q_PROPERTY(qreal bgOpacity READ bgOpacity WRITE setBgOpacity NOTIFY changed)
+    Q_PROPERTY(qreal coverPresence READ coverPresence WRITE setCoverPresence NOTIFY changed)
+    Q_PROPERTY(qreal ovVignette READ ovVignette WRITE setOvVignette NOTIFY changed)
+    Q_PROPERTY(bool eqEffectOn READ eqEffectOn WRITE setEqEffectOn NOTIFY changed)
+    Q_PROPERTY(bool lyricsHidden READ lyricsHidden WRITE setLyricsHidden NOTIFY changed)
+    Q_PROPERTY(bool lyricsBlockMode READ lyricsBlockMode WRITE setLyricsBlockMode NOTIFY changed)
 
     // bundled typography (registered in C++ so it's consistent on every distro)
     Q_PROPERTY(int fontChoice READ fontChoice WRITE setFontChoice NOTIFY changed)
@@ -123,6 +130,8 @@ class ThemeManager : public QObject {
     Q_PROPERTY(QString monoFamily READ monoFamily NOTIFY changed)
 
     Q_PROPERTY(bool notesOn READ notesOn WRITE setNotesOn NOTIFY changed)
+    // whether the first-run tutorial has been shown (persisted)
+    Q_PROPERTY(bool tutorialSeen READ tutorialSeen WRITE setTutorialSeen NOTIFY changed)
 
 public:
     explicit ThemeManager(MprisController *player, QObject *parent = nullptr);
@@ -146,7 +155,7 @@ public:
     qreal lumFloor() const { return blend(&ThemeDef::lumFloor); }
     qreal gradeStrength() const { return blend(&ThemeDef::gradeStrength); }
     qreal grain() const { return m_ovGrain >= 0 ? m_ovGrain : blend(&ThemeDef::grain); }
-    qreal vignette() const { return blend(&ThemeDef::vignette); }
+    qreal vignette() const { return m_ovVignette >= 0 ? m_ovVignette : blend(&ThemeDef::vignette); }
     qreal glassOpacity() const { return m_ovGlass >= 0 ? m_ovGlass : blend(&ThemeDef::glassOpacity); }
     qreal glassBorder() const { return blend(&ThemeDef::glassBorder); }
     int radius() const;
@@ -175,12 +184,26 @@ public:
     void setOvGlass(qreal v);
     void setAccentHue(qreal v);
 
-    qreal eqCavaIntensity() const { return m_eqCavaIntensity; }
-    void setEqCavaIntensity(qreal v);
     qreal discSpin() const { return m_discSpin; }
     void setDiscSpin(qreal v);
     bool reduceMotion() const { return m_reduceMotion; }
     void setReduceMotion(bool v);
+    qreal orbIntensity() const { return m_orbIntensity; }
+    void setOrbIntensity(qreal v);
+    qreal glowStrength() const { return m_glowStrength; }
+    void setGlowStrength(qreal v);
+    qreal bgOpacity() const { return m_bgOpacity; }
+    void setBgOpacity(qreal v);
+    qreal coverPresence() const { return m_coverPresence; }
+    void setCoverPresence(qreal v);
+    qreal ovVignette() const { return m_ovVignette; }
+    void setOvVignette(qreal v);
+    bool eqEffectOn() const { return m_eqEffectOn; }
+    void setEqEffectOn(bool v);
+    bool lyricsHidden() const { return m_lyricsHidden; }
+    void setLyricsHidden(bool v);
+    bool lyricsBlockMode() const { return m_lyricsBlockMode; }
+    void setLyricsBlockMode(bool v);
 
     int fontChoice() const { return m_fontChoice; }
     void setFontChoice(int v);
@@ -188,6 +211,8 @@ public:
     QString monoFamily() const;
     bool notesOn() const { return m_notesOn; }
     void setNotesOn(bool v);
+    bool tutorialSeen() const { return m_tutorialSeen; }
+    void setTutorialSeen(bool v);
 
     Q_INVOKABLE void setTheme(const QString &id);
     Q_INVOKABLE void resetKnobs();
@@ -235,9 +260,16 @@ private:
     qreal m_ovGlass = -1;        // absolute 0..1 (glass frost / panel opacity)
     qreal m_accentHue = 0;       // extra hue rotation in degrees (-30..30)
 
-    qreal m_eqCavaIntensity = 0.85;  // absolute 0..1, opacity of the EQ's live spectrum overlay
     qreal m_discSpin = 1.0;          // absolute 0.2..3.0, disc rotation speed multiplier
     bool m_reduceMotion = false;     // hard-disables ambient/looping motion app-wide
+    qreal m_orbIntensity = 0.85;     // absolute 0..1, strength of the floating-orb backdrop
+    qreal m_glowStrength = 0.7;      // absolute 0..1, master strength of disc/UI glows
+    qreal m_bgOpacity = 1.0;         // absolute 0..1, window background opacity (transparency)
+    qreal m_coverPresence = 0.55;    // absolute 0..1, how present the blurred cover backdrop is
+    qreal m_ovVignette = -1;         // -1 = follow theme, else absolute 0..1
+    bool m_eqEffectOn = true;        // the EQ preset/band transition sweep
+    bool m_lyricsHidden = false;     // user hid the lyrics pane
+    bool m_lyricsBlockMode = true;   // lyrics rendered as big ASCII block letters
 
     // typography (families resolved from the bundled fonts registered at ctor)
     int m_fontChoice = 0;        // 0 Rubik · 1 Maple Mono · 2 JetBrains Mono · 3 System
@@ -245,6 +277,7 @@ private:
     QString m_mapleFamily;
     QString m_rubikFamily;
     bool m_notesOn = true;       // ambient floating music notes
+    bool m_tutorialSeen = false; // first-run tutorial has been shown
 };
 
 }  // namespace vespera

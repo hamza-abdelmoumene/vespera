@@ -58,6 +58,7 @@ qt_add_qml_module(vespera
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
+        qml/blockfont.js
         qml/scene/CoverBackdrop.qml
         qml/scene/AuroraOverlay.qml
         qml/scene/StarfieldOverlay.qml
@@ -66,6 +67,7 @@ qt_add_qml_module(vespera
         qml/scene/FloatingNotes.qml
         qml/components/GlassPanel.qml
         qml/components/EclipseDisc.qml
+        qml/components/DiscGlow.qml
         qml/components/NowPlaying.qml
         qml/components/TransportBar.qml
         qml/components/GlyphButton.qml
@@ -77,6 +79,7 @@ qt_add_qml_module(vespera
         qml/components/PresetButton.qml
         qml/components/IconButton.qml
         qml/components/ThemePicker.qml
+        qml/components/HelpOverlay.qml
 )
 
 qt_add_resources(vespera "fonts"

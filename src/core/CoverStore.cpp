@@ -96,7 +96,9 @@ QImage CoverStore::blurred(int radius) {
     // stretching a ~15-25px tile that far, which reads as blocky/muddy rather than
     // a soft blur once you're past maybe 15x scale. This keeps the same "downscale
     // is the blur" trick but caps the upscale ratio to something that stays smooth.
-    const int n = std::clamp(int(std::lround(2600.0 / std::max(8, radius))), 26, 220);
+    // lower floor (was 26) lets a heavy backdrop radius produce a very small
+    // source that upscales into a silky, banding-free blur — the smooth cover field
+    const int n = std::clamp(int(std::lround(2600.0 / std::max(8, radius))), 14, 220);
     auto it = m_cache.constFind(n);
     if (it != m_cache.constEnd()) return it.value();
     QImage small = m_src.scaled(n, n, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);

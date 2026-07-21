@@ -121,7 +121,23 @@ void ThemeManager::onPaletteChanged() {
 void ThemeManager::loadBuiltins() {
     auto add = [this](ThemeDef d) { m_defs.push_back(std::move(d)); };
 
-    {  // EMBER — flagship: warm amber/sage glass, heir to the owner's own
+    {  // VESPERA — the DYNAMIC flagship: the whole room follows the album. No fixed
+        // hue anywhere — accent + accentAlt are the album's own vivid colours, the
+        // base and grade are album-derived, so every track visibly recolours the UI.
+        // This is the "dynamic theming" default; the curated themes below commit a
+        // hue/mood on purpose.
+        ThemeDef t;
+        t.id = "vespera"; t.name = "Vespera"; t.blurb = "Living colour — the whole room follows your album";
+        t.scene = "field"; t.iridescent = true; t.warmth = 0.0; t.saturation = 1.22;
+        t.accentLift = 0.02; t.baseDarken = 0.92;
+        t.blur = 54; t.coverOpacity = 0.55;
+        t.coverSaturation = 1.42; t.coverBrightness = 1.12; t.lumFloor = 0.28;
+        t.gradeStrength = 0.15; t.grain = 0.0; t.vignette = 0.2;
+        t.glassOpacity = 0.3; t.glassBorder = 0.15; t.radius = 18; t.motion = 1.0;
+        t.sceneIntensity = 0.0;
+        add(t);
+    }
+    {  // EMBER — warm amber/sage glass, heir to the owner's own
         // MusicPopup reference. Kept id "halo" so the persisted default and
         // VESPERA_THEME fallback keep working untouched.
         ThemeDef t;
@@ -134,11 +150,11 @@ void ThemeManager::loadBuiltins() {
         // amber→sage pairing from the approved mockup, every track.
         t.scene = "field"; t.iridescent = false; t.saturation = 1.15; t.warmth = 0.46;
         t.accentFixed = QColor(0xff, 0xc9, 0x78);  // warm gold
-        // coverOpacity was 1.0 — a full-strength, full-bleed photo behind
-        // everything reads as a blown-up low-res mess with typical MPRIS art
-        // (Spotify thumbnails etc). Every other theme sits 0.5-0.72; brought
-        // Ember in line and leaned on gradeStrength/blur to keep the warmth.
-        t.baseDarken = 1.0; t.blur = 56; t.coverOpacity = 0.58;
+        // The full-bleed cover is deliberately quiet now: the album's light
+        // reads from the disc's radial bloom (DiscGlow), not a photo stretched
+        // edge-to-edge. This backdrop is just a faint graded atmosphere the glass
+        // refracts. Ember went 1.0 -> 0.58 last round; this is the bigger step.
+        t.baseDarken = 1.0; t.blur = 56; t.coverOpacity = 0.34;
         t.coverSaturation = 1.5; t.coverBrightness = 1.14; t.lumFloor = 0.3;
         t.gradeColor = QColor(0x1c, 0x14, 0x0c);  // warm bias even on cool-toned art
         t.gradeStrength = 0.22; t.grain = 0.0; t.vignette = 0.22;
@@ -150,7 +166,7 @@ void ThemeManager::loadBuiltins() {
         ThemeDef t;
         t.id = "obsidian"; t.name = "Obsidian"; t.blurb = "Black glass — deep, precise, jewel-lit";
         t.scene = "field"; t.warmth = 0.0; t.saturation = 0.92; t.accentLift = 0.1;
-        t.baseFixed = QColor(0x07, 0x07, 0x0a); t.blur = 50; t.coverOpacity = 0.5;
+        t.baseFixed = QColor(0x07, 0x07, 0x0a); t.blur = 50; t.coverOpacity = 0.3;
         t.coverSaturation = 0.92; t.coverBrightness = 0.96; t.lumFloor = 0.22;
         t.gradeColor = QColor(0x0a, 0x0a, 0x0d); t.gradeStrength = 0.4; t.grain = 0.0;
         t.vignette = 0.34; t.glassOpacity = 0.34; t.glassBorder = 0.18; t.radius = 14;
@@ -161,7 +177,7 @@ void ThemeManager::loadBuiltins() {
         ThemeDef t;
         t.id = "velvet"; t.name = "Velvet"; t.blurb = "Velvet — rich colour, after-dark lush";
         t.scene = "field"; t.warmth = 0.2; t.saturation = 1.25; t.iridescent = true;
-        t.baseDarken = 0.85; t.blur = 48; t.coverOpacity = 0.72;
+        t.baseDarken = 0.85; t.blur = 48; t.coverOpacity = 0.44;
         t.coverSaturation = 1.5; t.coverBrightness = 1.1; t.lumFloor = 0.3;
         t.gradeStrength = 0.2; t.grain = 0.0; t.vignette = 0.24; t.glassOpacity = 0.3;
         t.glassBorder = 0.14; t.radius = 18; t.motion = 0.95;
@@ -171,7 +187,7 @@ void ThemeManager::loadBuiltins() {
         ThemeDef t;
         t.id = "starlit"; t.name = "Starlit"; t.blurb = "Deep space — stars over an album-tinted planet";
         t.scene = "starfield"; t.warmth = -0.08; t.saturation = 1.05;
-        t.baseFixed = QColor(0x09, 0x0e, 0x22); t.blur = 58; t.coverOpacity = 0.52;
+        t.baseFixed = QColor(0x09, 0x0e, 0x22); t.blur = 58; t.coverOpacity = 0.32;
         t.coverSaturation = 1.15; t.coverBrightness = 1.06; t.lumFloor = 0.24;
         t.gradeColor = QColor(0x0a, 0x10, 0x28);
         t.gradeStrength = 0.38; t.grain = 0.0; t.vignette = 0.3; t.glassOpacity = 0.3;
@@ -182,7 +198,7 @@ void ThemeManager::loadBuiltins() {
         ThemeDef t;
         t.id = "noir"; t.name = "Noir"; t.blurb = "Monochrome — desaturated, still, work-safe";
         t.scene = "field"; t.warmth = 0.0; t.saturation = 0.12; t.accentLift = 0.12;
-        t.baseFixed = QColor(0x0e, 0x0e, 0x11); t.blur = 52; t.coverOpacity = 0.55;
+        t.baseFixed = QColor(0x0e, 0x0e, 0x11); t.blur = 52; t.coverOpacity = 0.32;
         t.coverSaturation = 0.0; t.coverBrightness = 1.05; t.lumFloor = 0.24;
         t.gradeColor = QColor(0x0c, 0x0c, 0x0e);
         t.gradeStrength = 0.35; t.grain = 0.0; t.vignette = 0.3; t.glassOpacity = 0.3;
@@ -195,7 +211,7 @@ void ThemeManager::loadBuiltins() {
         t.id = "aurora"; t.name = "Aurora"; t.blurb = "Northern light — cool curtains over frost";
         t.scene = "aurora"; t.warmth = -0.34; t.saturation = 1.1;
         t.accentFixed = QColor(0x5a, 0xd6, 0xcf);  // aurora teal
-        t.baseFixed = QColor(0x07, 0x16, 0x1a); t.blur = 50; t.coverOpacity = 0.58;
+        t.baseFixed = QColor(0x07, 0x16, 0x1a); t.blur = 50; t.coverOpacity = 0.34;
         t.coverSaturation = 1.25; t.coverBrightness = 1.08; t.lumFloor = 0.26;
         t.gradeColor = QColor(0x08, 0x22, 0x22);
         t.gradeStrength = 0.3; t.grain = 0.0; t.vignette = 0.26; t.glassOpacity = 0.28;
@@ -207,7 +223,7 @@ void ThemeManager::loadBuiltins() {
         t.id = "neon"; t.name = "Neon"; t.blurb = "Synthwave — grid, sun, and a cover sky";
         t.scene = "synthwave"; t.warmth = 0.12; t.saturation = 1.22; t.iridescent = true;
         t.accentFixed = QColor(0xff, 0x5d, 0xb2);  // hot magenta
-        t.baseFixed = QColor(0x14, 0x0a, 0x24); t.blur = 42; t.coverOpacity = 0.55;
+        t.baseFixed = QColor(0x14, 0x0a, 0x24); t.blur = 42; t.coverOpacity = 0.36;
         t.coverSaturation = 1.35; t.coverBrightness = 1.08; t.lumFloor = 0.26;
         t.gradeColor = QColor(0x2a, 0x0e, 0x38);
         t.gradeStrength = 0.35; t.grain = 0.0; t.vignette = 0.3; t.glassOpacity = 0.34;
@@ -314,12 +330,20 @@ QColor ThemeManager::deriveAccentAlt(const ThemeDef &t) const {
 }
 
 QColor ThemeManager::deriveBase(const ThemeDef &t) const {
-    if (t.baseFixed.isValid()) return tintMood(t.baseFixed, t.warmth, 0.1);
-    QColor album = m_player ? m_player->base() : QColor(0x0b, 0x0f, 0x24);
-    oklch::Lch c = oklch::fromColor(album);
-    c.L = std::clamp(c.L * t.baseDarken, 0.03, 0.22);
-    QColor out = oklch::toColor(c);
-    return tintMood(out, t.warmth, 0.16);
+    QColor out;
+    if (t.baseFixed.isValid()) {
+        out = tintMood(t.baseFixed, t.warmth, 0.1);
+    } else {
+        QColor album = m_player ? m_player->base() : QColor(0x0b, 0x0f, 0x24);
+        oklch::Lch c = oklch::fromColor(album);
+        c.L = std::clamp(c.L * t.baseDarken, 0.03, 0.22);
+        out = tintMood(oklch::toColor(c), t.warmth, 0.16);
+    }
+    // a small, global deepen of the ground — a touch darker with a bit more
+    // contrast against the bright accents/text, applied to every theme.
+    oklch::Lch cc = oklch::fromColor(out);
+    cc.L = std::clamp(cc.L * 0.88, 0.02, 0.2);
+    return oklch::toColor(cc);
 }
 
 QColor ThemeManager::deriveText(const ThemeDef &t) const {
@@ -410,7 +434,7 @@ void ThemeManager::selectInitial() {
     // used by the screenshot tooling to render each theme deterministically.
     QString want = qEnvironmentVariable("VESPERA_THEME");
     if (want.isEmpty() || !find(want))
-        want = s.value(QStringLiteral("theme/id"), QStringLiteral("halo")).toString();
+        want = s.value(QStringLiteral("theme/id"), QStringLiteral("vespera")).toString();
     const ThemeDef *d = find(want);
     if (!d) d = &m_defs.first();
     m_cur = *d;
@@ -492,15 +516,14 @@ void ThemeManager::setNotesOn(bool v) {
     if (m_notesOn == v) return;
     m_notesOn = v; savePrefs(); emit changed();
 }
+void ThemeManager::setTutorialSeen(bool v) {
+    if (m_tutorialSeen == v) return;
+    m_tutorialSeen = v; savePrefs(); emit changed();
+}
 void ThemeManager::setAccentHue(qreal v) {
     v = std::clamp(v, -30.0, 30.0);
     if (qFuzzyCompare(m_accentHue, v)) return;
     m_accentHue = v; savePrefs(); emit changed();
-}
-void ThemeManager::setEqCavaIntensity(qreal v) {
-    v = std::clamp(v, 0.0, 1.0);
-    if (qFuzzyCompare(m_eqCavaIntensity, v)) return;
-    m_eqCavaIntensity = v; savePrefs(); emit changed();
 }
 void ThemeManager::setDiscSpin(qreal v) {
     v = std::clamp(v, 0.2, 3.0);
@@ -511,12 +534,55 @@ void ThemeManager::setReduceMotion(bool v) {
     if (m_reduceMotion == v) return;
     m_reduceMotion = v; savePrefs(); emit changed();
 }
+void ThemeManager::setOrbIntensity(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (qFuzzyCompare(m_orbIntensity, v)) return;
+    m_orbIntensity = v; savePrefs(); emit changed();
+}
+void ThemeManager::setGlowStrength(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (qFuzzyCompare(m_glowStrength, v)) return;
+    m_glowStrength = v; savePrefs(); emit changed();
+}
+void ThemeManager::setBgOpacity(qreal v) {
+    v = std::clamp(v, 0.35, 1.0);   // keep some floor so it never vanishes
+    if (qFuzzyCompare(m_bgOpacity, v)) return;
+    m_bgOpacity = v; savePrefs(); emit changed();
+}
+void ThemeManager::setCoverPresence(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (qFuzzyCompare(m_coverPresence, v)) return;
+    m_coverPresence = v; savePrefs(); emit changed();
+}
+void ThemeManager::setOvVignette(qreal v) {
+    if (v >= 0) v = std::clamp(v, 0.0, 1.0);
+    if (qFuzzyCompare(m_ovVignette, v)) return;
+    m_ovVignette = v; savePrefs(); emit changed();
+}
+void ThemeManager::setEqEffectOn(bool v) {
+    if (m_eqEffectOn == v) return;
+    m_eqEffectOn = v; savePrefs(); emit changed();
+}
+void ThemeManager::setLyricsHidden(bool v) {
+    if (m_lyricsHidden == v) return;
+    m_lyricsHidden = v; savePrefs(); emit changed();
+}
+void ThemeManager::setLyricsBlockMode(bool v) {
+    if (m_lyricsBlockMode == v) return;
+    m_lyricsBlockMode = v; savePrefs(); emit changed();
+}
 void ThemeManager::resetKnobs() {
     m_ovBlur = m_ovCoverOpacity = m_ovGrain = m_ovGlass = -1;
     m_accentHue = 0;
-    m_eqCavaIntensity = 0.85;
     m_discSpin = 1.0;
     m_reduceMotion = false;
+    m_orbIntensity = 0.85;
+    m_glowStrength = 0.7;
+    m_bgOpacity = 1.0;
+    m_coverPresence = 0.55;
+    m_ovVignette = -1;
+    m_eqEffectOn = true;
+    // lyricsHidden is a layout preference, not a look knob — leave it on reset
     savePrefs();
     emit changed();
 }
@@ -530,9 +596,17 @@ void ThemeManager::loadPrefs() {
     m_accentHue = s.value(QStringLiteral("theme/accentHue"), 0.0).toDouble();
     m_fontChoice = s.value(QStringLiteral("theme/fontChoice"), 0).toInt();
     m_notesOn = s.value(QStringLiteral("theme/notesOn"), true).toBool();
-    m_eqCavaIntensity = s.value(QStringLiteral("theme/eqCavaIntensity"), 0.85).toDouble();
+    m_tutorialSeen = s.value(QStringLiteral("app/tutorialSeen"), false).toBool();
     m_discSpin = s.value(QStringLiteral("theme/discSpin"), 1.0).toDouble();
     m_reduceMotion = s.value(QStringLiteral("theme/reduceMotion"), false).toBool();
+    m_orbIntensity = s.value(QStringLiteral("theme/orbIntensity"), 0.85).toDouble();
+    m_glowStrength = s.value(QStringLiteral("theme/glowStrength"), 0.7).toDouble();
+    m_bgOpacity = s.value(QStringLiteral("theme/bgOpacity"), 1.0).toDouble();
+    m_coverPresence = s.value(QStringLiteral("theme/coverPresence"), 0.55).toDouble();
+    m_ovVignette = s.value(QStringLiteral("theme/ovVignette"), -1.0).toDouble();
+    m_eqEffectOn = s.value(QStringLiteral("theme/eqEffectOn"), true).toBool();
+    m_lyricsHidden = s.value(QStringLiteral("theme/lyricsHidden"), false).toBool();
+    m_lyricsBlockMode = s.value(QStringLiteral("theme/lyricsBlockMode"), true).toBool();
 }
 void ThemeManager::savePrefs() {
     QSettings s;
@@ -543,9 +617,17 @@ void ThemeManager::savePrefs() {
     s.setValue(QStringLiteral("theme/accentHue"), m_accentHue);
     s.setValue(QStringLiteral("theme/fontChoice"), m_fontChoice);
     s.setValue(QStringLiteral("theme/notesOn"), m_notesOn);
-    s.setValue(QStringLiteral("theme/eqCavaIntensity"), m_eqCavaIntensity);
+    s.setValue(QStringLiteral("app/tutorialSeen"), m_tutorialSeen);
     s.setValue(QStringLiteral("theme/discSpin"), m_discSpin);
     s.setValue(QStringLiteral("theme/reduceMotion"), m_reduceMotion);
+    s.setValue(QStringLiteral("theme/orbIntensity"), m_orbIntensity);
+    s.setValue(QStringLiteral("theme/glowStrength"), m_glowStrength);
+    s.setValue(QStringLiteral("theme/bgOpacity"), m_bgOpacity);
+    s.setValue(QStringLiteral("theme/coverPresence"), m_coverPresence);
+    s.setValue(QStringLiteral("theme/ovVignette"), m_ovVignette);
+    s.setValue(QStringLiteral("theme/eqEffectOn"), m_eqEffectOn);
+    s.setValue(QStringLiteral("theme/lyricsHidden"), m_lyricsHidden);
+    s.setValue(QStringLiteral("theme/lyricsBlockMode"), m_lyricsBlockMode);
 }
 
 }  // namespace vespera
