@@ -99,7 +99,7 @@ chmod +x vespera-*-x86_64.AppImage
 ### 🐧 Arch Linux (AUR)
 
 ```sh
-yay -S vespera        # latest release
+yay -S vespera        # latest release  (or paru, or makepkg -si on packaging/aur)
 yay -S vespera-git    # build from main
 ```
 
