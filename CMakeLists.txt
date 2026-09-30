@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(vespera
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Standalone, distro-agnostic Linux music player companion"
     HOMEPAGE_URL "https://github.com/hamza-abdelmoumene/vespera"
     LANGUAGES CXX)

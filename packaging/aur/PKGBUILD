@@ -1,6 +1,6 @@
 # Maintainer: Hamza Abdelmoumene <250554870+hamza-abdelmoumene@users.noreply.github.com>
 pkgname=vespera
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Standalone music player companion: MPRIS control, synced lyrics, visualizer and equalizer"
 arch=('x86_64' 'aarch64')

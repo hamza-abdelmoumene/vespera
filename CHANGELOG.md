@@ -6,6 +6,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-30
+
+A full visual redesign. (Everything below was only in `vespera-git` until now —
+the `vespera` package was still on 0.1.0.)
+
+### Added
+
+- **Theme engine**: eight built-in themes (Vespera, Ember, Obsidian, Velvet,
+  Starlit, Noir, Aurora, Neon) plus user JSON themes in
+  `~/.config/vespera/themes`. The new default, Vespera, is fully album-dynamic —
+  accent, base, grade and orbs recolour per track with a smooth cross-fade
+  across every surface.
+- **Real glass**: panels blur what is behind them (with a frost fallback on
+  software rendering), with elevation shadows and inner depth.
+- **Backdrop**: a translucent album-tinted ground, a blurred and graded cover
+  as a colour field, and large soft floating orbs.
+- **Block-letter karaoke lyrics** alongside the synced list, plus a toggle to
+  hide lyrics and go full-width.
+- **Equalizer**: a one-shot "lightning" bolt sweeps through the bands when a
+  preset is applied, each slider reacting as it passes (can be switched off).
+- **Settings drawer** with live knobs for cover, orbs, transparency, frost,
+  blur, glow, accent, vignette, motion, lyrics, EQ and type; a reduce-motion
+  switch; all persisted.
+- **First-run tutorial** and a `?` help overlay.
+- Window drag-to-move and a minimize button; press/hover feedback throughout.
+- The installer now installs Qt and the toolchain for your distro.
+
+### Changed
+
+- Transport controls are centred on the wide layout, and the compact view
+  scales cleanly from the minimum window size up.
+
+### Fixed
+
+- Lyrics for the previous track could appear after the player closed, and every
+  track skip fired a wasted lyrics request: cancelling a lookup let the aborted
+  request start the next fallback search.
+- The lyrics loading spinner never turned.
+- Blocky, muddy cover backdrop at large window sizes.
+- Effects silently rendering blank on software/offscreen rendering.
+- Demo/screenshot mode no longer leaks the live player's cover art.
+
 ## [0.1.0] - 2026-07-18
 
 Initial release.
@@ -31,5 +73,6 @@ Initial release.
   AUR PKGBUILDs, Flatpak manifest, AppImage recipe, and CI that ships an
   AppImage and source tarball on tag.
 
-[Unreleased]: https://github.com/hamza-abdelmoumene/vespera/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hamza-abdelmoumene/vespera/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hamza-abdelmoumene/vespera/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hamza-abdelmoumene/vespera/releases/tag/v0.1.0
