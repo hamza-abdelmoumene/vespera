@@ -48,7 +48,7 @@ Item {
             } else { // resync — circular arrow
                 ctx.save();
                 ctx.translate(cx, cy);
-                ctx.rotate(root.spin * Math.PI / 180);
+                ctx.rotate(cv.spin * Math.PI / 180);
                 const r = w * 0.38;
                 ctx.beginPath();
                 ctx.arc(0, 0, r, -Math.PI * 0.5, Math.PI * 0.95);

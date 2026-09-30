@@ -16,6 +16,7 @@
 #include <QUrlQuery>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace vespera {
 
@@ -158,13 +159,18 @@ void LyricsService::trackReply(int reqId, QNetworkReply *reply) {
 }
 
 void LyricsService::cancelInFlight() {
-    for (auto it = m_pending.begin(); it != m_pending.end(); ++it)
+    // abort() emits finished() synchronously, so the reply handlers run right
+    // here. Retire the request id first so they bail instead of chaining the
+    // next fallback for a track that is gone, and swap the table out so a
+    // handler can never append to it while we iterate.
+    ++m_requestId;
+    const auto pending = std::exchange(m_pending, {});
+    for (auto it = pending.begin(); it != pending.end(); ++it)
         for (auto &ptr : it.value())
             if (auto *r = ptr.data()) {
                 r->abort();
                 r->deleteLater();
             }
-    m_pending.clear();
 }
 
 void LyricsService::tryLrclibGet(int reqId) {
