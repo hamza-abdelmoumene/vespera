@@ -47,6 +47,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.1" date="2026-09-30">
+      <description>
+        <p>Vespera now goes nearly idle when its window is on a hidden or special workspace: the visualizer and animations pause until it is shown again.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-09-30">
       <description>
         <p>A full visual redesign: album-dynamic theming with eight built-in themes and user themes, real glass panels, an album-tinted orb backdrop, block-letter karaoke lyrics, a redesigned equalizer with a lightning preset transition, a settings drawer and a first-run tutorial.</p>

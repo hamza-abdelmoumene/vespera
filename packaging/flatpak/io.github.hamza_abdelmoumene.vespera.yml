@@ -30,4 +30,4 @@ modules:
     sources:
       - type: git
         url: https://github.com/hamza-abdelmoumene/vespera.git
-        tag: v0.2.0
+        tag: v0.2.1
