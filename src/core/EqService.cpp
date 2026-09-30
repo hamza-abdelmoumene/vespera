@@ -172,6 +172,9 @@ void EqService::apply() {
     // preset live. Pure Qt — no shell/pgrep, so it works on any distro.
     // Starting the service when it is already up is a harmless no-op (the
     // second GApplication instance fails to claim the name and exits).
+    // Keep this flag even though EasyEffects 8 marks it deprecated: its
+    // replacement, --service-mode, forwards to the running instance and pops
+    // its window up on every EQ change (checked on 8.2.9); this one stays quiet.
     const QString exe = QStringLiteral("easyeffects");
     const QString presetName = QLatin1String(kPresetName);
     QProcess::startDetached(exe, {QStringLiteral("--gapplication-service")});

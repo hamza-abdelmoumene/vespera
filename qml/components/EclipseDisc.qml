@@ -62,6 +62,7 @@ Item {
             from: 0; to: 360; duration: 42000 / Style.discSpin
             loops: Animation.Infinite
             running: root.playing && root.visible && !Style.reduceMotion
+            paused: running && !Frames.onScreen  // hold the angle while off screen
         }
 
         Image {

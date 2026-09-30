@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Near-idle when the window is on a hidden or special workspace: Wayland keeps
+  reporting the window as visible, so cava kept streaming at 60 fps and the
+  scene kept animating off screen. Vespera now notices when the compositor stops
+  taking frames and pauses cava, the backdrop, the disc spin and the lyrics
+  follow timer until it is shown again (3.7% → 0.7% of a core while hidden).
+
 ## [0.2.0] - 2026-09-30
 
 A full visual redesign. (Everything below was only in `vespera-git` until now —

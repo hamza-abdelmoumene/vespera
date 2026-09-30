@@ -30,7 +30,7 @@ GlassPanel {
     }
     Timer {
         interval: 120
-        running: Player.playing && root.visible && Lyrics.hasLyrics
+        running: Player.playing && root.visible && Lyrics.hasLyrics && Frames.onScreen
         repeat: true
         onTriggered: { root.estPos = Player.position + (Date.now() - root._t0) / 1000; root.pushFollow(); }
     }

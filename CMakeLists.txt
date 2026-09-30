@@ -48,6 +48,7 @@ qt_add_executable(vespera
     src/core/AppImageProvider.h
     src/core/CoverStore.h
     src/core/CoverStore.cpp
+    src/core/FrameWatch.h
 )
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

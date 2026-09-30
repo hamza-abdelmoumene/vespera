@@ -28,6 +28,7 @@
 #include "core/AppImageProvider.h"
 #include "core/CavaService.h"
 #include "core/ControlAdaptor.h"
+#include "core/FrameWatch.h"
 #include "core/CoverStore.h"
 #include "core/EqService.h"
 #include "core/LyricsService.h"
@@ -107,6 +108,7 @@ int runCapture(int argc, char **argv) {
     auto *eq = new vespera::EqService(&app);
     auto *style = new vespera::ThemeManager(mpris, &app);
     auto *coverStore = new vespera::CoverStore(&app);
+    auto *frames = new vespera::FrameWatch(&app);  // never attached: always on screen
     auto *imageProvider = new vespera::AppImageProvider(coverStore);
     QObject::connect(mpris, &vespera::MprisController::artImageReady, coverStore,
                      &vespera::CoverStore::setSource);
@@ -127,6 +129,7 @@ int runCapture(int argc, char **argv) {
     engine.rootContext()->setContextProperty(QStringLiteral("Eq"), eq);
     engine.rootContext()->setContextProperty(QStringLiteral("Style"), style);
     engine.rootContext()->setContextProperty(QStringLiteral("Cover"), coverStore);
+    engine.rootContext()->setContextProperty(QStringLiteral("Frames"), frames);
     engine.rootContext()->setContextProperty(QStringLiteral("startCompact"), compact);
     // capture-only hooks: drive the transient EQ effect + lyrics hand-scroll
     // state so those interactions can be screenshotted deterministically.
@@ -295,6 +298,7 @@ int main(int argc, char **argv) {
     vespera::EqService eq;
     vespera::ThemeManager style(&mpris);
     vespera::CoverStore coverStore;
+    vespera::FrameWatch frames;
     auto *imageProvider = new vespera::AppImageProvider(&coverStore);
     QObject::connect(&mpris, &vespera::MprisController::artImageReady, &coverStore,
                      &vespera::CoverStore::setSource);
@@ -319,6 +323,7 @@ int main(int argc, char **argv) {
     engine.rootContext()->setContextProperty(QStringLiteral("Eq"), &eq);
     engine.rootContext()->setContextProperty(QStringLiteral("Style"), &style);
     engine.rootContext()->setContextProperty(QStringLiteral("Cover"), &coverStore);
+    engine.rootContext()->setContextProperty(QStringLiteral("Frames"), &frames);
     engine.rootContext()->setContextProperty(QStringLiteral("startCompact"), compact);
     engine.rootContext()->setContextProperty(QStringLiteral("captureTide"), false);
     engine.rootContext()->setContextProperty(QStringLiteral("captureScrolled"), false);
@@ -338,6 +343,8 @@ int main(int argc, char **argv) {
         std::fprintf(stderr, "vespera: failed to load the QML interface.\n");
         return 1;
     }
+    if (auto *win = qobject_cast<QQuickWindow *>(engine.rootObjects().first()))
+        frames.attach(win);
 
     return QGuiApplication::exec();
 }

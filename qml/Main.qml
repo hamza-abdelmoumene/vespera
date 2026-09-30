@@ -23,6 +23,9 @@ Window {
     readonly property bool compact: userCompact || width < 640
     // lyrics show when there's room AND the user hasn't hidden the pane
     readonly property bool showLyrics: !compact && width >= 900 && !Style.lyricsHidden
+    // Actually on screen: visible AND the compositor is still taking frames
+    // (false on a hidden workspace or special workspace — see FrameWatch).
+    readonly property bool onScreen: visible && Frames.onScreen
     property bool pickerOpen: false
     property bool helpOpen: false
 
@@ -53,14 +56,14 @@ Window {
     Binding {
         target: Cava
         property: "active"
-        value: win.visible && Player.playing
+        value: win.onScreen && Player.playing
     }
 
     Backdrop {
         id: scene
         anchors.fill: parent
         source: Player.artUrl
-        animate: win.visible
+        animate: win.onScreen
     }
     // What the glass panels refract: GlassPanel samples the region of this item
     // behind itself (ShaderEffectSource + MultiEffect). Panels are siblings of
@@ -73,7 +76,7 @@ Window {
         anchors.fill: parent
         anchors.topMargin: chrome.height
         z: 6
-        animate: win.visible && Player.playing && Style.notesOn && !Style.reduceMotion
+        animate: win.onScreen && Player.playing && Style.notesOn && !Style.reduceMotion
     }
 
     // top app header — also the window's drag handle, since there's no native
